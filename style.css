@@ -1442,3 +1442,24 @@ body.cyberpunk-theme .share-modal .close-button {
 body.cyberpunk-theme .share-modal .close-button:hover {
   background-color: rgba(255, 0, 144, 0.2);
 }
+
+/* BOTÓN DE GITHUB */
+.github-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 8px 16px;
+  margin-top: 10px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.github-button:hover {
+  background-color: #444;
+}

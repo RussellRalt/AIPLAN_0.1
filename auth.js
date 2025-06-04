@@ -59,6 +59,28 @@ export async function signIn(email, password) {
     }
 }
 
+// Función para iniciar sesión con GitHub
+export async function signInWithGitHub() {
+    try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: 'github',
+            options: {
+                redirectTo: window.location.origin
+            }
+        });
+
+        if (error) {
+            console.error('Error al iniciar sesión con GitHub:', error.message);
+            throw error;
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Error en el proceso de inicio de sesión con GitHub:', error);
+        throw error;
+    }
+}
+
 // Función para cerrar sesión
 export async function signOut() {
     try {

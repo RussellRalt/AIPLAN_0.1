@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { signUp, signIn, signOut, getCurrentUser } from './auth.js';
+import { signUp, signIn, signOut, getCurrentUser, signInWithGitHub } from './auth.js';
 
 /************************************************************************
  * VARIABLES GLOBALES
@@ -142,15 +142,39 @@ function setupAuthEvents() {
   // Event listeners para los botones de elección
   const chooseSigninBtn = document.getElementById('chooseSigninBtn');
   const chooseSignupBtn = document.getElementById('chooseSignupBtn');
+  const githubLoginBtn = document.getElementById('githubLoginBtn');
   const authChoiceDiv = document.getElementById('authChoiceDiv');
   const authContainer = document.querySelector('.auth-container');
-
   chooseSigninBtn.addEventListener('click', () => {
     authChoiceDiv.style.display = 'none';
     authContainer.style.display = 'block';
     signinForm.style.display = 'block';
     signupForm.style.display = 'none';
   });
+
+  // Event listener para el botón de GitHub
+  if (githubLoginBtn) {
+    githubLoginBtn.addEventListener('click', async () => {
+      try {
+        await signInWithGitHub();
+        checkAuthStatus(); // Esto actualizará la UI después del login
+      } catch (error) {
+        alert('Error al iniciar sesión con GitHub: ' + error.message);
+      }
+    });
+  }
+
+  // Event listener para el botón de GitHub
+  if (githubLoginBtn) {
+    githubLoginBtn.addEventListener('click', async () => {
+      try {
+        await signInWithGitHub();
+        checkAuthStatus(); // Esto actualizará la UI después del login
+      } catch (error) {
+        alert('Error al iniciar sesión con GitHub: ' + error.message);
+      }
+    });
+  }
 
   chooseSignupBtn.addEventListener('click', () => {
     authChoiceDiv.style.display = 'none';
@@ -2057,20 +2081,7 @@ function executeAIAction(action, params) {
           console.log(`Carpeta "${params.folderName}" no encontrada.`);
         }
       } else {
-        console.log('No se proporcionaron los parámetros necesarios para crear la tarea (nombre de carpeta y nombre de tarea).');
-      }
-      break;
-    case 'addStep':
-      if (params && params.taskName && params.stepDescription) {
-        let taskFound = false;
-        for (const folder of folders) {
-          const task = folder.tasks.find(t => t.name === params.taskName);
-          if (task) {
-            console.log(`Attempting to add step: ${params.stepDescription} to task: ${params.taskName}`);
-            addNewStep(task, { value: params.stepDescription });
-            taskFound = true;
-            break;
-          }
+        console.log('No se proporcionaron los parámetros necesarios para crear la
         }
         if (!taskFound) {
           console.log(`Tarea "${params.taskName}" no encontrada.`);
