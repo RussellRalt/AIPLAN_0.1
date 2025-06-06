@@ -3,8 +3,8 @@ const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai'); // Importar la librería de Gemini
 const app = express();
 
-// Configura tu clave API de Gemini
-const GEMINI_API_KEY = 'AIzaSyBr4Ia_IJLX0s6xCtWDER4H75WL082UoBU'; // Clave proporcionada por el usuario
+// Configura tu clave API de Gemini desde las variables de entorno
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
