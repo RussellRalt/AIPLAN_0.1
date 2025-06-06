@@ -1980,7 +1980,7 @@ async function sendMessage() {
       currentFolderId: currentFolderId
     };
 
-    const response = await fetch('http://localhost:3000/api/chat', {
+    const response = await fetch('/api/chat', { // Usar ruta relativa para el despliegue
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
