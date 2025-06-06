@@ -98,18 +98,19 @@ const confirmNoBtn = document.getElementById('confirmNoBtn');
 /************************************************************************
  * EVENTOS DE CARGA
  ************************************************************************/
-window.addEventListener('load', () => {
-  loadDataFromLocalStorage();
-  ensureRewardsFolder();
-  applyTheme(currentTheme);
-  renderFolders();
-  cleanOldTrashItems();
-  window.addEventListener('popstate', handlePopState);
-  setInterval(checkAlarms, 60 * 1000);
-  setupChatEvents();
-  setupShareEvents();
-  setupAuthEvents(); // Nuevo: Configurar eventos de autenticación
-  checkAuthStatus(); // Nuevo: Verificar estado de autenticación al cargar
+window.addEventListener('load', async () => {
+  try {
+    await loadDataFromLocalStorage();
+    ensureRewardsFolder();
+    applyTheme(currentTheme);
+    renderFolders();
+    cleanOldTrashItems();
+    window.addEventListener('popstate', handlePopState);
+    setInterval(checkAlarms, 60 * 1000);
+    setupChatEvents();
+    setupShareEvents();
+    setupAuthEvents(); // Nuevo: Configurar eventos de autenticación
+    await checkAuthStatus(); // Nuevo: Verificar estado de autenticación al cargar
 
   const appTitleLink = document.getElementById('appTitleLink');
   if (appTitleLink) {
@@ -1902,15 +1903,55 @@ async function saveDataToLocalStorage() {
   }
 }
 
-function loadDataFromLocalStorage() {
-  const dataString = localStorage.getItem('foldersDataV4');
-  if (dataString) {
-    const dataObj = JSON.parse(dataString);
-    folders = dataObj.folders || [];
-    trash = dataObj.trash || [];
-  } else {
+async function loadDataFromLocalStorage() {
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      // Si hay un usuario logueado, cargar sus datos específicos
+      const userDataKey = `userData_${user.id}`;
+      const dataString = localStorage.getItem(userDataKey);
+      if (dataString) {
+        try {
+          const dataObj = JSON.parse(dataString);
+          folders = dataObj.folders || [];
+          trash = dataObj.trash || [];
+          ensureRewardsFolder();
+          return;
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError);
+          // Si hay error al parsear los datos del usuario, usar datos vacíos
+          folders = [];
+          trash = [];
+          ensureRewardsFolder();
+          return;
+        }
+      }
+    }
+    
+    // Si no hay usuario o no hay datos específicos, intentar cargar datos genéricos
+    const dataString = localStorage.getItem('foldersDataV4');
+    if (dataString) {
+      try {
+        const dataObj = JSON.parse(dataString);
+        folders = dataObj.folders || [];
+        trash = dataObj.trash || [];
+        ensureRewardsFolder();
+      } catch (parseError) {
+        console.error('Error parsing generic data:', parseError);
+        folders = [];
+        trash = [];
+        ensureRewardsFolder();
+      }
+    } else {
+      folders = [];
+      trash = [];
+      ensureRewardsFolder();
+    }
+  } catch (error) {
+    console.error('Error in loadDataFromLocalStorage:', error);
     folders = [];
     trash = [];
+    ensureRewardsFolder();
   }
 }
 
@@ -1945,6 +1986,23 @@ function clearUserData() {
  ************************************************************************/
 let chatHistory = [];
 
+function showLoadingMessage() {
+  const chatMessages = document.getElementById('chatMessages');
+  const loadingMsg = document.createElement('div');
+  loadingMsg.id = 'loadingMessage';
+  loadingMsg.style.textAlign = 'left';
+  loadingMsg.textContent = "🤖 Escribiendo...";
+  chatMessages.appendChild(loadingMsg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeLoadingMessage() {
+  const loadingMsg = document.getElementById('loadingMessage');
+  if (loadingMsg) {
+    loadingMsg.remove();
+  }
+}
+
 async function toggleChatModal() {
   const user = await getCurrentUser();
   const chatModal = document.getElementById('chatModal');
@@ -1970,6 +2028,13 @@ async function sendMessage() {
   const message = input.value.trim();
   if (!message) return;
 
+  const user = await getCurrentUser();
+  if (!user) {
+    alert('Por favor, inicia sesión para usar el chat.');
+    showSection(authSection);
+    return;
+  }
+
   const chatMessages = document.getElementById('chatMessages');
   const userMsg = document.createElement('div');
   userMsg.style.textAlign = 'right';
@@ -1978,6 +2043,11 @@ async function sendMessage() {
   input.value = '';
 
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new Error('Debes iniciar sesión para usar el chat');
+    }
+
     chatHistory.push({ role: 'user', content: message });
 
     const appState = {
@@ -1986,16 +2056,23 @@ async function sendMessage() {
       currentFolderId: currentFolderId
     };
 
+    showLoadingMessage();
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.id}` // Añadir el ID del usuario para seguridad
       },
       body: JSON.stringify({ messages: chatHistory, appState: appState })
-    });
-
+    });    removeLoadingMessage();
     if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Error HTTP: ${response.status}`);
+    }
+    
+    // Check for no internet connection
+    if (!navigator.onLine) {
+      throw new Error('No hay conexión a internet. Por favor, verifica tu conexión.');
     }
 
     const data = await response.json();
@@ -2034,11 +2111,13 @@ async function sendMessage() {
     }
 
   } catch (error) {
+    removeLoadingMessage();
     console.error('Error:', error);
     const errorMsg = document.createElement('div');
     errorMsg.style.textAlign = 'left';
-    errorMsg.textContent = "🤖 Lo siento, hubo un error al procesar tu mensaje.";
+    errorMsg.textContent = "🤖 " + (error.message || "Lo siento, hubo un error al procesar tu mensaje.");
     chatMessages.appendChild(errorMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 }
 
@@ -2291,8 +2370,18 @@ function emptyTrash() {
 }
 
 function newConversation() {
-  document.getElementById('chatMessages').innerHTML = '';
+  const messagesDiv = document.getElementById('chatMessages');
+  messagesDiv.innerHTML = '';
   chatHistory = [];
+  
+  // Add welcome message
+  const welcomeMsg = document.createElement('div');
+  welcomeMsg.style.textAlign = 'left';
+  welcomeMsg.textContent = "🤖 ¡Hola! ¿En qué puedo ayudarte hoy? Puedo ayudarte a crear y organizar carpetas, tareas y más.";
+  messagesDiv.appendChild(welcomeMsg);
+  
+  // Focus on input
+  document.getElementById('chatInput').focus();
 }
 
 function setupChatEvents() {

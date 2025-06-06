@@ -77,12 +77,25 @@ export async function getCurrentUser() {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) {
             console.error('Error al obtener el usuario actual:', error.message);
-            throw error;
+            return null;
         }
+
+        if (!user) {
+            return null;
+        }
+
+        // Check if the session is expired
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+            console.log('Sesión expirada o error, cerrando sesión');
+            await signOut();
+            return null;
+        }
+
         return user;
     } catch (error) {
         console.error('Error al obtener el usuario actual:', error);
-        throw error;
+        return null;
     }
 }
 
