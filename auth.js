@@ -50,6 +50,9 @@ export async function signIn(email, password) {
             throw error;
         }
 
+        // Guardar la sesión en localStorage para persistencia
+        localStorage.setItem('supabase.auth.token', JSON.stringify(data));
+        
         return data.user;
     } catch (error) {
         console.error('Error en el proceso de inicio de sesión:', error);
@@ -102,6 +105,13 @@ export async function getCurrentUser() {
 // Función para manejar los cambios en el estado de autenticación
 async function handleAuthStateChange(event, session) {
     console.log('Auth state changed:', event, session);
+    
+    // Prevenir cualquier recarga automática
+    if (event === 'SIGNED_IN' && window.location.hash === '#reload') {
+        window.location.hash = '';
+        return;
+    }
+    
     const authSection = document.getElementById('authSection');
     const foldersSection = document.getElementById('foldersSection');
     const tasksSection = document.getElementById('tasksSection');

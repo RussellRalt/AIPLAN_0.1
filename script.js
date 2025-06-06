@@ -173,8 +173,7 @@ function setupAuthEvents() {
     } catch (error) {
       alert('Error al registrarse: ' + error.message);
     }
-  });
-  signinForm.addEventListener('submit', async (e) => {
+  });  signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signinEmail.value;
     const password = signinPassword.value;
@@ -185,8 +184,11 @@ function setupAuthEvents() {
         signinEmail.value = '';
         signinPassword.value = '';
         // Actualizar la UI y mostrar la sección de carpetas
-        await checkAuthStatus();
+        await handleAuthStateChange('SIGNED_IN', { user });
+        await loadDataFromLocalStorage();
         showFolders();
+        // Prevenir cualquier recarga
+        return false;
       }
     } catch (error) {
       alert('Error al iniciar sesión: ' + error.message);
