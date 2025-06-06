@@ -229,8 +229,8 @@ async function checkAuthStatus() {
     headerAuthIcon.title = 'Iniciar sesión';
     if (authChoiceDiv) authChoiceDiv.style.display = 'block';
     if (authContainer) authContainer.style.display = 'none';
-    if (aiButton) aiButton.style.display = 'none';
-    if (chatModal) chatModal.style.display = 'none';
+    if (aiButton) aiButton.style.setProperty('display', 'none', 'important');
+    if (chatModal) chatModal.style.setProperty('display', 'none', 'important');
     clearUserData();
     showSection(authSection);
   }
