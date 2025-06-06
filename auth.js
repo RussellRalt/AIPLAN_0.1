@@ -1,4 +1,6 @@
-// Las credenciales de Supabase se manejan en supabase.js
+// Reemplaza con tu Project URL y anon key de Supabase
+const SUPABASE_URL = 'https://lxhfwnmhuhdhiosvdflw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4aGZ3bm1odWhkaGlvc3ZkZmx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNTIwMzYsImV4cCI6MjA2NDYyODAzNn0.J1Lw2OfNpdCQsvmvD40hcnlHmUVBxQCob0J6AsgU6ow';
 
 import { supabase } from './supabase.js';
 
@@ -50,9 +52,6 @@ export async function signIn(email, password) {
             throw error;
         }
 
-        // Guardar la sesión en localStorage para persistencia
-        localStorage.setItem('supabase.auth.token', JSON.stringify(data));
-        
         return data.user;
     } catch (error) {
         console.error('Error en el proceso de inicio de sesión:', error);
@@ -80,38 +79,18 @@ export async function getCurrentUser() {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) {
             console.error('Error al obtener el usuario actual:', error.message);
-            return null;
+            throw error;
         }
-
-        if (!user) {
-            return null;
-        }
-
-        // Check if the session is expired
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session) {
-            console.log('Sesión expirada o error, cerrando sesión');
-            await signOut();
-            return null;
-        }
-
         return user;
     } catch (error) {
         console.error('Error al obtener el usuario actual:', error);
-        return null;
+        throw error;
     }
 }
 
 // Función para manejar los cambios en el estado de autenticación
 async function handleAuthStateChange(event, session) {
     console.log('Auth state changed:', event, session);
-    
-    // Prevenir cualquier recarga automática
-    if (event === 'SIGNED_IN' && window.location.hash === '#reload') {
-        window.location.hash = '';
-        return;
-    }
-    
     const authSection = document.getElementById('authSection');
     const foldersSection = document.getElementById('foldersSection');
     const tasksSection = document.getElementById('tasksSection');

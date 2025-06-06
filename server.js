@@ -3,8 +3,14 @@ const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai'); // Importar la librería de Gemini
 const app = express();
 
-// Configura tu clave API de Gemini desde las variables de entorno
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Configura tu clave API de Gemini
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Usar variable de entorno
+
+if (!GEMINI_API_KEY) {
+  console.error("Error: La variable de entorno GEMINI_API_KEY no está configurada.");
+  // En un entorno de producción, podrías querer que el servidor no inicie o maneje esto de otra forma.
+  // Por ahora, solo lo registraremos y continuaremos, pero Gemini no funcionará.
+}
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
