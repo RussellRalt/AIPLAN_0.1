@@ -173,14 +173,20 @@ function setupAuthEvents() {
       alert('Error al registrarse: ' + error.message);
     }
   });
-
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signinEmail.value;
     const password = signinPassword.value;
     try {
-      await signIn(email, password);
-      checkAuthStatus(); // Esto actualizará la UI
+      const user = await signIn(email, password);
+      if (user) {
+        // Limpiar los campos del formulario
+        signinEmail.value = '';
+        signinPassword.value = '';
+        // Actualizar la UI y mostrar la sección de carpetas
+        await checkAuthStatus();
+        showFolders();
+      }
     } catch (error) {
       alert('Error al iniciar sesión: ' + error.message);
     }
