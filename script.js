@@ -1,13 +1,14 @@
 // @ts-nocheck
 import { signUp, signIn, signOut, getCurrentUser } from './auth.js';
+import { supabase } from './supabase.js'; // Importar supabase
 
 /************************************************************************
  * VARIABLES GLOBALES
  ************************************************************************/
-// Estructura de cada carpeta: { id, name, tasks:[], finished:[], isDefaultRewards?:bool }
 let folders = [];
 let trash = [];
-const rewardsFolderId = 'rewards-folder';
+const REWARDS_FOLDER_NAME = 'Recompensas'; // Usar para identificar la carpeta por nombre
+let _rewardsFolderObject = null; // Contendrá el objeto de la carpeta de recompensas del usuario actual
 let currentFolderId = null;
 
 let currentTheme = localStorage.getItem('appTheme') || 'dark';
@@ -19,12 +20,12 @@ let draggedStepIndex = null;
 let presentationSteps = [];
 let currentStepIndex = 0;
 let timerSeconds = 0;
-let currentStepCountdown = 0; // Temporizador específico para el paso actual
+let currentStepCountdown = 0; 
 let timerInterval = null;
 let presentationOpen = false;
 let currentPresentationTask = null;
-let isPresentationMinimized = false; // Estado para saber si está minimizada
-let isPresentationMode = false; // Variable para controlar el modo de presentación
+let isPresentationMinimized = false; 
+let isPresentationMode = false; 
 
 let taskBeingScheduled = null;
 let currentAlarmTask = null;
@@ -33,15 +34,12 @@ let folderOfTaskBeingRewarded = null;
 let taskBeingMoved = null;
 let folderOfTaskBeingMoved = null;
 let isTaskCompletedBeingMoved = false;
+let taskToShare = null; // Para la función de compartir
 
-// NUEVAS VARIABLES PARA DEBOUNCE DE INTERACCIONES EN LA PRESENTACIÓN
 let lastPresentationInteraction = 0;
-const PRESENTATION_DEBOUNCE_MS = 300; // tiempo en milisegundos
+const PRESENTATION_DEBOUNCE_MS = 300; 
 
-// NUEVA VARIABLE GLOBAL PARA MARCAR EL OCULTAMIENTO
 let lastHiddenTime = 0;
-
-// Variable para almacenar el wake lock.
 let wakeLock = null;
 
 /************************************************************************
@@ -55,17 +53,16 @@ const trashButton = document.getElementById('trashButton');
 const newFolderInput = document.getElementById('newFolderInput');
 const tasksSection = document.getElementById('tasksSection');
 const headerDynamicTitle = document.getElementById('headerDynamicTitle');
-const headerAuthIcon = document.getElementById('headerAuthIcon'); // Nuevo
-const authSection = document.getElementById('authSection'); // Nuevo
-const signupForm = document.getElementById('signupForm'); // Nuevo
-const signupEmail = document.getElementById('signupEmail'); // Nuevo
-const signupPassword = document.getElementById('signupPassword'); // Nuevo
-const signinForm = document.getElementById('signinForm'); // Nuevo
-const signinEmail = document.getElementById('signinEmail'); // Nuevo
-const signinPassword = document.getElementById('signinPassword'); // Nuevo
-const signOutButton = document.getElementById('signOutButton'); // Nuevo
+const headerAuthIcon = document.getElementById('headerAuthIcon'); 
+const authSection = document.getElementById('authSection'); 
+const signupForm = document.getElementById('signupForm'); 
+const signupEmail = document.getElementById('signupEmail'); 
+const signupPassword = document.getElementById('signupPassword'); 
+const signinForm = document.getElementById('signinForm'); 
+const signinEmail = document.getElementById('signinEmail'); 
+const signinPassword = document.getElementById('signinPassword'); 
+const signOutButton = document.getElementById('signOutButton'); 
 const newTaskInput = document.getElementById('newTaskInput');
-// Nuevo input para asignar tiempo (en minutos) a la tarea
 const newTaskTimeInput = document.getElementById('newTaskTimeInput');
 const tasksList = document.getElementById('tasksList');
 const completedMiniFolder = document.getElementById('completedMiniFolder');
@@ -88,8 +85,6 @@ const moveModal = document.getElementById('moveModal');
 const targetFolderSelect = document.getElementById('targetFolderSelect');
 const confirmMoveBtn = document.getElementById('confirmMoveBtn');
 const cancelMoveBtn = document.getElementById('cancelMoveBtn');
-
-// Elementos del modal de confirmación
 const confirmModal = document.getElementById('confirmModal');
 const confirmMessageElem = document.getElementById('confirmMessage');
 const confirmYesBtn = document.getElementById('confirmYesBtn');
@@ -99,74 +94,63 @@ const confirmNoBtn = document.getElementById('confirmNoBtn');
  * EVENTOS DE CARGA
  ************************************************************************/
 window.addEventListener('load', () => {
-  loadDataFromLocalStorage();
-  ensureRewardsFolder();
   applyTheme(currentTheme);
-  renderFolders();
-  cleanOldTrashItems();
   window.addEventListener('popstate', handlePopState);
   setInterval(checkAlarms, 60 * 1000);
   setupChatEvents();
   setupShareEvents();
-  setupAuthEvents(); // Nuevo: Configurar eventos de autenticación
-  checkAuthStatus(); // Nuevo: Verificar estado de autenticación al cargar
+  setupAuthEvents(); 
+  checkAuthStatus(); 
 
   const appTitleLink = document.getElementById('appTitleLink');
   if (appTitleLink) {
     appTitleLink.addEventListener('click', (e) => {
-      e.preventDefault(); // Prevent default link behavior
-      showFolders(); // Navigate to the home page (folders view)
+      e.preventDefault(); 
+      showFolders(); 
     });
   }
-
 });
 
 function setupAuthEvents() {
   let userMenuOpen = false;
-
-  // Modificado: unificamos la opción de inicio de sesión
   if (headerAuthIcon) {
     headerAuthIcon.addEventListener('click', async () => {
       const user = await getCurrentUser();
       if (user) {
-        // Si el usuario está logueado, alternamos el menú de usuario.
         userMenuOpen = !userMenuOpen;
         updateUserMenu(user, userMenuOpen);
       } else {
-        // Si el usuario NO está logueado, mostramos la sección de autenticación
         showSection(authSection);
       }
     });
   }
 
-  // Event listeners para los botones de elección
   const chooseSigninBtn = document.getElementById('chooseSigninBtn');
   const chooseSignupBtn = document.getElementById('chooseSignupBtn');
   const authChoiceDiv = document.getElementById('authChoiceDiv');
   const authContainer = document.querySelector('.auth-container');
 
-  chooseSigninBtn.addEventListener('click', () => {
+  if (chooseSigninBtn) chooseSigninBtn.addEventListener('click', () => {
     authChoiceDiv.style.display = 'none';
     authContainer.style.display = 'block';
     signinForm.style.display = 'block';
     signupForm.style.display = 'none';
   });
 
-  chooseSignupBtn.addEventListener('click', () => {
+  if (chooseSignupBtn) chooseSignupBtn.addEventListener('click', () => {
     authChoiceDiv.style.display = 'none';
     authContainer.style.display = 'block';
     signupForm.style.display = 'block';
     signinForm.style.display = 'none';
   });
 
-  signupForm.addEventListener('submit', async (e) => {
+  if (signupForm) signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signupEmail.value;
     const password = signupPassword.value;
     try {
       await signUp(email, password);
       alert('Registro exitoso. Por favor, verifica tu correo electrónico.');
-      // Mostrar el formulario de inicio de sesión después del registro
       signupForm.style.display = 'none';
       signinForm.style.display = 'block';
     } catch (error) {
@@ -174,13 +158,13 @@ function setupAuthEvents() {
     }
   });
 
-  signinForm.addEventListener('submit', async (e) => {
+  if (signinForm) signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signinEmail.value;
     const password = signinPassword.value;
     try {
       await signIn(email, password);
-      checkAuthStatus(); // Esto actualizará la UI
+      checkAuthStatus(); 
     } catch (error) {
       alert('Error al iniciar sesión: ' + error.message);
     }
@@ -199,9 +183,7 @@ async function signOutAndRefresh() {
 function updateUserMenu(user, open) {
   const userMenu = document.getElementById('userMenu');
   if (!userMenu) return;
-
   userMenu.innerHTML = '';
-
   if (open) {
     const emailItem = document.createElement('div');
     emailItem.textContent = user.email;
@@ -209,19 +191,17 @@ function updateUserMenu(user, open) {
     emailItem.style.color = '#fff';
     emailItem.style.borderBottom = '1px solid #555';
     userMenu.appendChild(emailItem);
-
-    const signOutButton = document.createElement('button');
-    signOutButton.textContent = 'Cerrar sesión';
-    signOutButton.style.width = '100%';
-    signOutButton.style.padding = '0.5rem';
-    signOutButton.style.marginTop = '0.5rem';
-    signOutButton.style.background = 'transparent';
-    signOutButton.style.border = 'none';
-    signOutButton.style.color = '#fff';
-    signOutButton.style.cursor = 'pointer';
-    signOutButton.addEventListener('click', signOutAndRefresh);
-    userMenu.appendChild(signOutButton);
-
+    const signOutButtonEl = document.createElement('button');
+    signOutButtonEl.textContent = 'Cerrar sesión';
+    signOutButtonEl.style.width = '100%';
+    signOutButtonEl.style.padding = '0.5rem';
+    signOutButtonEl.style.marginTop = '0.5rem';
+    signOutButtonEl.style.background = 'transparent';
+    signOutButtonEl.style.border = 'none';
+    signOutButtonEl.style.color = '#fff';
+    signOutButtonEl.style.cursor = 'pointer';
+    signOutButtonEl.addEventListener('click', signOutAndRefresh);
+    userMenu.appendChild(signOutButtonEl);
     userMenu.style.display = 'block';
   } else {
     userMenu.style.display = 'none';
@@ -236,106 +216,90 @@ async function checkAuthStatus() {
   const authContainer = document.querySelector('.auth-container');
 
   if (user) {
-    // Usuario logueado
     headerAuthIcon.innerHTML = `<span style="font-size: 0.8rem; margin-right: 5px;">${user.email}</span> 🚪`;
     headerAuthIcon.title = 'Cerrar sesión';
     if (authChoiceDiv) authChoiceDiv.style.display = 'none';
     if (authContainer) authContainer.style.display = 'none';
-    // Mostrar el botón de AI y resetear el estado del chat
     if (aiButton) aiButton.style.display = 'block';
     if (chatModal) chatModal.style.display = 'none';
-    // Cargar datos del usuario específico
-    loadUserData(user.id);
-    showFolders(); // Mostrar las carpetas si el usuario está logueado
+    await loadInitialDataFromSupabase(user.id); 
+    showFolders(); 
   } else {
-    // Usuario no logueado - MOSTRAR SOLO LA PANTALLA DE AUTENTICACIÓN
-    headerAuthIcon.innerHTML = '👤'; // Icono de usuario
+    headerAuthIcon.innerHTML = '👤'; 
     headerAuthIcon.title = 'Iniciar sesión';
     if (authChoiceDiv) authChoiceDiv.style.display = 'block';
     if (authContainer) authContainer.style.display = 'none';
-    // Ocultar el botón de AI y la ventana del chat
     if (aiButton) aiButton.style.display = 'none';
     if (chatModal) chatModal.style.display = 'none';
-    // Limpiar datos cuando no hay usuario
     clearUserData();
-    // Mostrar SOLO la sección de autenticación
     showSection(authSection);
   }
 }
 
 function setupShareEvents() {
-  // Botón de cerrar modal
-  document.getElementById('closeShareBtn').addEventListener('click', () => {
+  const closeShareBtn = document.getElementById('closeShareBtn');
+  if(closeShareBtn) closeShareBtn.addEventListener('click', () => {
     document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por WhatsApp
-  document.getElementById('whatsappShareBtn').addEventListener('click', () => {
+  const whatsappShareBtn = document.getElementById('whatsappShareBtn');
+  if(whatsappShareBtn) whatsappShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getWhatsAppShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por Telegram
-  document.getElementById('telegramShareBtn').addEventListener('click', () => {
+  const telegramShareBtn = document.getElementById('telegramShareBtn');
+  if(telegramShareBtn) telegramShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getTelegramShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por correo
-  document.getElementById('emailShareBtn').addEventListener('click', () => {
+  const emailShareBtn = document.getElementById('emailShareBtn');
+  if(emailShareBtn) emailShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getEmailShareLink(taskToShare);
     window.location.href = url;
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por Facebook
-  document.getElementById('facebookShareBtn').addEventListener('click', () => {
+  const facebookShareBtn = document.getElementById('facebookShareBtn');
+  if(facebookShareBtn) facebookShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getFacebookShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por Twitter
-  document.getElementById('twitterShareBtn').addEventListener('click', () => {
+  const twitterShareBtn = document.getElementById('twitterShareBtn');
+  if(twitterShareBtn) twitterShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getTwitterShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
-
-  // Botón de compartir por LinkedIn
-  document.getElementById('linkedinShareBtn').addEventListener('click', () => {
+  const linkedinShareBtn = document.getElementById('linkedinShareBtn');
+  if(linkedinShareBtn) linkedinShareBtn.addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getLinkedInShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
+    document.getElementById('shareModal').style.display = 'none';
   });
 }
 
-// Funciones para generar enlaces de compartir
 function getFacebookShareLink(task) {
   const text = encodeURIComponent(formatTaskForSharing(task));
   return `https://www.facebook.com/sharer/sharer.php?u=&quote=${text}`;
 }
-
 function getTwitterShareLink(task) {
   const text = encodeURIComponent(formatTaskForSharing(task));
   return `https://twitter.com/intent/tweet?text=${text}`;
 }
-
 function getLinkedInShareLink(task) {
   const title = encodeURIComponent(`Tarea: ${task.name}`);
-  const summary = encodeURIComponent(formatTaskForSharing(task)); // Usar el formato completo para el resumen
+  const summary = encodeURIComponent(formatTaskForSharing(task)); 
   return `https://www.linkedin.com/shareArticle?mini=true&title=${title}&summary=${summary}`;
 }
 
-newFolderInput.addEventListener('keydown', (e) => {
+if (newFolderInput) newFolderInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const name = newFolderInput.value.trim();
     if (name) {
@@ -345,10 +309,19 @@ newFolderInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Listener para el input del nombre de la tarea
-newTaskInput.addEventListener('keydown', (e) => {
-  // Si estamos en la carpeta de recompensas, no permitimos crear "tareas"
-  if (currentFolderId === rewardsFolderId) return;
+if (newTaskInput) newTaskInput.addEventListener('keydown', (e) => {
+  if (_rewardsFolderObject && currentFolderId === _rewardsFolderObject.id) return;
+  if (e.key === 'Enter') {
+    const taskName = newTaskInput.value.trim();
+    if (taskName && currentFolderId) {
+      createTask(currentFolderId, taskName);
+      newTaskInput.value = '';
+      if (newTaskTimeInput) newTaskTimeInput.value = '';
+    }
+  }
+});
+
+if (newTaskTimeInput) newTaskTimeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const taskName = newTaskInput.value.trim();
     if (taskName && currentFolderId) {
@@ -359,28 +332,15 @@ newTaskInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Listener adicional para el input del temporizador (tiempo)
-newTaskTimeInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const taskName = newTaskInput.value.trim();
-    if (taskName && currentFolderId) {
-      createTask(currentFolderId, taskName);
-      newTaskInput.value = '';
-      newTaskTimeInput.value = '';
-    }
-  }
-});
-
-themeButton.addEventListener('click', () => {
+if (themeButton) themeButton.addEventListener('click', () => {
   if (currentTheme === 'dark') applyTheme('light');
   else if (currentTheme === 'light') applyTheme('cyberpunk');
   else applyTheme('dark');
 });
 
-importFileInput.addEventListener('change', (e) => {
+if (importFileInput) importFileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
@@ -389,12 +349,13 @@ importFileInput.addEventListener('change', (e) => {
         console.log("El archivo no es válido o no contiene 'folders'.");
         return;
       }
-      const importedFolders = importedJSON.folders.filter(f => !f.isDefaultRewards);
+      const importedFolders = importedJSON.folders.filter(f => !(f.name === REWARDS_FOLDER_NAME && f.isDefaultRewards === true) ); 
+      // TODO: Aquí se debería hacer un UPSERT a Supabase para cada carpeta y sus tareas/pasos importados.
       folders = [...folders, ...importedFolders];
-      ensureRewardsFolder();
-      saveDataToLocalStorage();
+      ensureRewardsFolder(); 
+      // saveDataToLocalStorage(); // Necesita ser reemplazado por lógica de Supabase
       renderFolders();
-      console.log("¡Datos importados con éxito!");
+      console.log("¡Datos importados con éxito! (Solo localmente por ahora)");
     } catch (err) {
       console.error("Error al leer el JSON: " + err);
     }
@@ -403,84 +364,108 @@ importFileInput.addEventListener('change', (e) => {
   importFileInput.value = '';
 });
 
-trashButton.addEventListener('click', () => showTrash());
-rewardInput.addEventListener('keydown', (e) => {
+if (trashButton) trashButton.addEventListener('click', () => showTrash());
+if (rewardInput) rewardInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const text = rewardInput.value.trim();
     if (text) {
       addReward(text);
-      if (folderOfTaskBeingRewarded && taskBeingRewarded) {
-        moveTaskToMiniFolder(folderOfTaskBeingRewarded, taskBeingRewarded);
-      }
       rewardInput.value = '';
-      rewardSection.style.display = 'none';
-      tasksSection.style.display = 'block';
+      // showSection(tasksSection); // Se maneja en addReward
     }
   }
 });
 
-saveScheduleBtn.addEventListener('click', () => {
+if (saveScheduleBtn) saveScheduleBtn.addEventListener('click', async () => { 
   if (!taskBeingScheduled) return;
-  const newDate = scheduleDateInput.value;
-  taskBeingScheduled.scheduledTimestamp = newDate ? new Date(newDate).getTime() : null;
+  const newDateValue = scheduleDateInput.value;
+  const newTimestamp = newDateValue ? new Date(newDateValue).getTime() : null;
+  const oldTimestamp = taskBeingScheduled.scheduledTimestamp;
+
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede actualizar la tarea.");
+    return;
+  }
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({ scheduled_timestamp: newTimestamp ? new Date(newTimestamp).toISOString() : null })
+    .eq('id', taskBeingScheduled.id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error actualizando scheduled_timestamp en Supabase:', error);
+    alert('Error al programar la tarea. Inténtalo de nuevo.');
+    taskBeingScheduled.scheduledTimestamp = oldTimestamp; 
+  } else {
+    taskBeingScheduled.scheduledTimestamp = newTimestamp;
+    console.log('scheduled_timestamp actualizado en Supabase para la tarea:', taskBeingScheduled.id);
+    renderTasks();
+  }
   closeScheduleModal();
-  saveDataToLocalStorage();
-  renderTasks();
 });
-cancelScheduleBtn.addEventListener('click', () => closeScheduleModal());
-disableAlarmBtn.addEventListener('click', () => {
+if (cancelScheduleBtn) cancelScheduleBtn.addEventListener('click', () => closeScheduleModal());
+
+if (disableAlarmBtn) disableAlarmBtn.addEventListener('click', async () => { 
   alarmModal.style.display = 'none';
   if (currentAlarmTask) {
-    currentAlarmTask.scheduledTimestamp = null;
-    saveDataToLocalStorage();
-    renderTasks();
+    const user = await getCurrentUser();
+    if (!user) {
+      console.error("Usuario no autenticado. No se puede actualizar la tarea.");
+      return;
+    }
+    // const oldTimestamp = currentAlarmTask.scheduledTimestamp; // No es necesario para revertir aquí
+    const { error } = await supabase
+      .from('tasks')
+      .update({ scheduled_timestamp: null })
+      .eq('id', currentAlarmTask.id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Error actualizando scheduled_timestamp a null en Supabase:', error);
+      alert('Error al desactivar la alarma. Inténtalo de nuevo.');
+    } else {
+      currentAlarmTask.scheduledTimestamp = null;
+      console.log('Alarma desactivada en Supabase para la tarea:', currentAlarmTask.id);
+      renderTasks();
+    }
   }
   currentAlarmTask = null;
 });
 
-/************************************************************************
- * CONFIRM MODAL PERSONALIZADO
- ************************************************************************/
 function showConfirm(message, onConfirm, onCancel) {
   confirmMessageElem.textContent = message;
   confirmModal.style.display = 'flex';
-
   const handleYes = () => {
     confirmModal.style.display = 'none';
     confirmYesBtn.removeEventListener('click', handleYes);
     confirmNoBtn.removeEventListener('click', handleNo);
     if (onConfirm) onConfirm();
   };
-
   const handleNo = () => {
     confirmModal.style.display = 'none';
     confirmYesBtn.removeEventListener('click', handleYes);
     confirmNoBtn.removeEventListener('click', handleNo);
     if (onCancel) onCancel();
   };
-
   confirmYesBtn.addEventListener('click', handleYes);
   confirmNoBtn.addEventListener('click', handleNo);
 }
 
-/************************************************************************
- * HISTORIAL / NAVEGACIÓN
- ************************************************************************/
 window.removeEventListener('popstate', handlePopState);
 window.addEventListener('popstate', handlePopState);
 
 function handlePopState(event) {
   console.log('popstate event:', event.state);
-  // Si la presentación está activa en pantalla grande, cerrarla y detener navegación.
   if (presentationOpen && !isPresentationMinimized) {
     console.log('Cerrando presentación por popstate');
     closePresentation(true);
-    return; // No procesar más cambios
+    return; 
   }
-  // Procesa la navegación normal solo si hay un estado
   if (event.state) {
-    if (event.state.rewards) {
-      showFolders();
+    if (event.state.rewards && _rewardsFolderObject) {
+        openFolder(_rewardsFolderObject.id, false);
     } else if (event.state.folderId) {
       openFolder(event.state.folderId, false);
     } else if (event.state.trash) {
@@ -491,31 +476,24 @@ function handlePopState(event) {
   }
 }
 
-// Función auxiliar para mostrar una sección y ocultar las demás
 function showSection(sectionToShow) {
   const sections = [foldersSection, tasksSection, trashSection, rewardSection, authSection];
   sections.forEach(section => {
-    if (section === sectionToShow) {
-      if (section === authSection) {
-        section.style.display = 'flex';
-      } else {
-        section.style.display = 'block';
-      }
-    } else {
-      section.style.display = 'none';
+    if (section) { 
+        if (section === sectionToShow) {
+        section.style.display = (section === authSection) ? 'flex' : 'block';
+        } else {
+        section.style.display = 'none';
+        }
     }
   });
-
-  // Asegurar que el chat y el botón AI estén ocultos si se está mostrando la sección de autenticación
   const chatModal = document.getElementById('chatModal');
   const aiButton = document.getElementById('aiButton');
   if (sectionToShow === authSection) {
     if (chatModal) chatModal.style.display = 'none';
     if (aiButton) aiButton.style.display = 'none';
   }
-
-  // Ocultar el modal de presentación si no es la sección de presentación
-  if (sectionToShow !== presentationModal && !isPresentationMinimized) {
+  if (presentationModal && sectionToShow !== presentationModal && !isPresentationMinimized) {
     presentationModal.style.display = 'none';
   }
 }
@@ -523,7 +501,7 @@ function showSection(sectionToShow) {
 function showFolders() {
   showSection(foldersSection);
   currentFolderId = null;
-  headerDynamicTitle.textContent = ''; // Empty for main folders view
+  if(headerDynamicTitle) headerDynamicTitle.textContent = ''; 
 }
 
 function openFolder(folderId, pushToHistory = true) {
@@ -532,17 +510,14 @@ function openFolder(folderId, pushToHistory = true) {
   const folder = folders.find(f => f.id === folderId);
   if (!folder) {
     console.log('Carpeta no encontrada:', folderId);
+    showFolders(); 
     return;
   }
-
-  headerDynamicTitle.textContent = folder.name; // Update dynamic title
-
+  if(headerDynamicTitle) headerDynamicTitle.textContent = folder.name; 
   showSection(tasksSection);
   renderTasks();
-
-  // Empuja el estado al historial: si es la carpeta de Recompensas, usa un estado especial
   if (pushToHistory) {
-    if (folderId === rewardsFolderId) {
+    if (_rewardsFolderObject && folderId === _rewardsFolderObject.id) {
       history.pushState({ rewards: true }, '', '');
     } else {
       history.pushState({ folderId }, '', '');
@@ -553,101 +528,133 @@ function openFolder(folderId, pushToHistory = true) {
 function showTrash(pushHistory = true) {
   showSection(trashSection);
   renderTrash();
-
-  // Update header for trash view
-  headerDynamicTitle.textContent = 'Papelera';
-
+  if(headerDynamicTitle) headerDynamicTitle.textContent = 'Papelera';
   if (pushHistory) {
     history.pushState({ trash: true }, '', '');
   }
 }
 
-// ... Continúa con el resto de funciones de la sección CARPETAS.
-
-/************************************************************************
- * TEMA
- ************************************************************************/
 function applyTheme(themeName) {
   document.body.classList.remove('light-theme', 'cyberpunk-theme');
   if (themeName === 'light') {
     document.body.classList.add('light-theme');
-    themeButton.textContent = '☀️';
+    if(themeButton) themeButton.textContent = '☀️';
   } else if (themeName === 'cyberpunk') {
     document.body.classList.add('cyberpunk-theme');
-    themeButton.textContent = '🔥';
+    if(themeButton) themeButton.textContent = '🔥';
   } else {
-    themeButton.textContent = '🌙';
+    if(themeButton) themeButton.textContent = '🌙';
   }
   currentTheme = themeName;
   localStorage.setItem('appTheme', themeName);
-  
-  // Actualiza el estilo del chat según el tema
   const chatModal = document.getElementById('chatModal');
-  chatModal.classList.remove('chat-dark', 'chat-light', 'chat-cyberpunk');
-  if (themeName === 'light') {
-    chatModal.classList.add('chat-light');
-  } else if (themeName === 'cyberpunk') {
-    chatModal.classList.add('chat-cyberpunk');
-  } else {
-    chatModal.classList.add('chat-dark');
+  if (chatModal) {
+    chatModal.classList.remove('chat-dark', 'chat-light', 'chat-cyberpunk');
+    if (themeName === 'light') chatModal.classList.add('chat-light');
+    else if (themeName === 'cyberpunk') chatModal.classList.add('chat-cyberpunk');
+    else chatModal.classList.add('chat-dark');
   }
 }
 
-/************************************************************************
- * CARPETAS
- ************************************************************************/
-function ensureRewardsFolder() {
-  let rf = folders.find(f => f.id === rewardsFolderId);
-  if (!rf) {
-    rf = {
-      id: rewardsFolderId,
-      name: 'Recompensas',
-      tasks: [],
-      finished: [],
-      isDefaultRewards: true
-    };
-    folders.push(rf);
+async function ensureRewardsFolder() { 
+  _rewardsFolderObject = folders.find(f => f.name === REWARDS_FOLDER_NAME && f.is_default_rewards === true);
+  if (!_rewardsFolderObject) {
+    const user = await getCurrentUser();
+    if (user) { 
+      console.log("Carpeta de Recompensas no encontrada para el usuario, creándola en Supabase...");
+      const newRewardsFolderData = {
+        user_id: user.id,
+        name: REWARDS_FOLDER_NAME,
+        is_default_rewards: true
+      };
+      const { data: createdFolder, error } = await supabase
+        .from('folders')
+        .insert(newRewardsFolderData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creando la carpeta de recompensas por defecto en Supabase:", error);
+      } else if (createdFolder) {
+        _rewardsFolderObject = { ...createdFolder, tasks: [], finished: [] }; 
+        folders.push(_rewardsFolderObject); 
+        console.log("Carpeta de recompensas por defecto creada en Supabase y añadida localmente:", _rewardsFolderObject);
+      }
+    }
+  } else {
+    console.log("Carpeta de Recompensas encontrada localmente:", _rewardsFolderObject);
   }
 }
+
 
 function createFolder(name) {
   const folder = {
-    id: generateId(),
     name,
     tasks: [],
     finished: [],
-    isDefaultRewards: false
+    isDefaultRewards: false 
   };
-  folders.push(folder);
-  saveDataToLocalStorage();
-  renderFolders();
+  saveFolderToSupabase(folder); 
+}
+
+async function saveFolderToSupabase(folderData) {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede guardar la carpeta.");
+    return;
+  }
+  const folderToInsert = {
+    user_id: user.id,
+    name: folderData.name,
+    is_default_rewards: folderData.isDefaultRewards || false
+  };
+  const { data, error } = await supabase
+    .from('folders')
+    .insert(folderToInsert)
+    .select() 
+    .single(); 
+  if (error) {
+    console.error('Error guardando carpeta en Supabase:', error);
+    alert('Error al crear la carpeta. Inténtalo de nuevo.');
+  } else if (data) {
+    console.log('Carpeta guardada en Supabase:', data);
+    const newFolder = {
+        id: data.id, 
+        name: data.name,
+        tasks: [], 
+        finished: [], 
+        is_default_rewards: data.is_default_rewards, 
+        created_at: data.created_at 
+    };
+    folders.push(newFolder);
+    if (newFolder.is_default_rewards) { 
+        _rewardsFolderObject = newFolder;
+    }
+    renderFolders(); 
+  }
 }
 
 function renderFolders() {
+  if (!folderContainer) return;
   folderContainer.innerHTML = '';
   folders.forEach(folder => {
     const folderDiv = document.createElement('div');
     folderDiv.className = 'folder';
     folderDiv.dataset.id = folder.id;
     folderDiv.draggable = true;
-
     const miniFolder = document.createElement('div');
     miniFolder.className = 'mini-folder';
     miniFolder.innerHTML = '📁';
-    miniFolder.onclick = () => showFinishedTasks(folder.id);
-
+    // miniFolder.onclick = () => showFinishedTasks(folder.id); // Esta función no existe
     folderDiv.addEventListener('dragstart', handleFolderDragStart);
     folderDiv.addEventListener('dragover', handleFolderDragOver);
     folderDiv.addEventListener('drop', handleFolderDrop);
     folderDiv.addEventListener('click', () => openFolder(folder.id));
-
     const folderIcon = document.createElement('div');
     folderIcon.className = 'folder-icon';
-
     const folderName = document.createElement('div');
     folderName.className = 'folder-name';
     folderName.textContent = folder.name;
-
     const folderOptionsBtn = document.createElement('button');
     folderOptionsBtn.className = 'folder-options-btn';
     folderOptionsBtn.innerHTML = '⋮';
@@ -655,11 +662,9 @@ function renderFolders() {
       e.stopPropagation();
       toggleFolderDropdownMenu(folder.id);
     });
-
     const folderDropdownMenu = document.createElement('div');
     folderDropdownMenu.className = 'folder-dropdown-menu';
     folderDropdownMenu.id = `folderMenu-${folder.id}`;
-
     const exportBtn = document.createElement('button');
     exportBtn.textContent = 'Exportar JSON';
     exportBtn.addEventListener('click', (e) => {
@@ -668,8 +673,7 @@ function renderFolders() {
       folderDropdownMenu.style.display = 'none';
     });
     folderDropdownMenu.appendChild(exportBtn);
-
-    if (!folder.isDefaultRewards) {
+    if (!folder.is_default_rewards) { 
       const renameBtn = document.createElement('button');
       renameBtn.textContent = 'Renombrar';
       renameBtn.addEventListener('click', (e) => {
@@ -678,7 +682,6 @@ function renderFolders() {
         folderDropdownMenu.style.display = 'none';
       });
       folderDropdownMenu.appendChild(renameBtn);
-
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = 'Eliminar';
       deleteBtn.addEventListener('click', (e) => {
@@ -690,7 +693,6 @@ function renderFolders() {
       });
       folderDropdownMenu.appendChild(deleteBtn);
     }
-
     folderDiv.append(folderOptionsBtn, folderDropdownMenu, folderIcon, folderName);
     folderContainer.appendChild(folderDiv);
   });
@@ -700,12 +702,9 @@ function toggleFolderDropdownMenu(folderId) {
   document.querySelectorAll('.folder-dropdown-menu').forEach(menu => {
     menu.style.display = 'none';
   });
-
   const menu = document.getElementById(`folderMenu-${folderId}`);
   if (!menu) return;
-
   menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-
   if (menu.style.display === 'block') {
     setTimeout(() => {
       document.addEventListener('click', function clickListener(e) {
@@ -718,44 +717,43 @@ function toggleFolderDropdownMenu(folderId) {
   }
 }
 
-window.addEventListener('popstate', (event) => {
-  if (event.state) {
-    // Si se detecta el estado especial de Recompensas, se vuelve a la vista de carpetas
-    if (event.state.rewards) {
-      showFolders();
-    } else if (event.state.folderId) {
-      openFolder(event.state.folderId, false);
-    } else if (event.state.trash) {
-      showTrash(false);
-    }
-  } else {
-    // Por defecto, mostrar la vista de carpetas
-    showFolders();
-  }
-});
-
-
 function renameFolder(folder) {
   const folderElement = document.querySelector(`[data-id="${folder.id}"]`);
   const nameElement = folderElement.querySelector('.folder-name');
-
   const editInput = document.createElement('input');
   editInput.type = 'text';
   editInput.className = 'folder-edit-input';
   editInput.value = folder.name;
-
-  const finishEdit = () => {
+  const finishEdit = async () => { 
     const newName = editInput.value.trim();
-    if (newName && newName !== folder.name) {
-      folder.name = newName;
-      saveDataToLocalStorage();
-      renderFolders();
+    const oldName = folder.name;
+    if (newName && newName !== oldName) {
+      const user = await getCurrentUser();
+      if (!user) {
+        console.error("Usuario no autenticado. No se puede renombrar la carpeta.");
+        nameElement.textContent = oldName; 
+        editInput.replaceWith(nameElement);
+        return;
+      }
+      const { error } = await supabase
+        .from('folders')
+        .update({ name: newName })
+        .eq('id', folder.id)
+        .eq('user_id', user.id);
+      if (error) {
+        console.error('Error renombrando carpeta en Supabase:', error);
+        alert('Error al renombrar la carpeta. Inténtalo de nuevo.');
+        nameElement.textContent = oldName; 
+      } else {
+        console.log('Carpeta renombrada en Supabase.');
+        folder.name = newName; 
+        renderFolders(); 
+      }
     } else {
-      nameElement.textContent = folder.name;
+      nameElement.textContent = oldName; 
     }
     editInput.replaceWith(nameElement);
   };
-
   editInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') finishEdit();
     if (e.key === 'Escape') {
@@ -763,118 +761,330 @@ function renameFolder(folder) {
       editInput.replaceWith(nameElement);
     }
   });
-
   editInput.addEventListener('blur', finishEdit);
-
   nameElement.replaceWith(editInput);
   editInput.focus();
 }
 
-/************************************************************************
- * PAPELERA
- ************************************************************************/
-function moveFolderToTrash(folderId) {
-  const idx = folders.findIndex(f => f.id === folderId);
-  if (idx === -1) return;
-
-  const folder = folders[idx];
-  folders.splice(idx, 1);
-
-  trash.push({
-    id: generateId(),
-    type: 'folder',
-    data: folder,
-    deletedAt: Date.now()
-  });
-  saveDataToLocalStorage();
+async function moveFolderToTrash(folderId) { 
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado.");
+    return;
+  }
+  const folderIndex = folders.findIndex(f => f.id === folderId);
+  if (folderIndex === -1) return;
+  const folderToTrash = { ...folders[folderIndex] }; 
+  const trashEntry = {
+    user_id: user.id,
+    item_type: 'folder',
+    original_item_id: folderToTrash.id, 
+    item_data: folderToTrash, 
+    deleted_at: new Date().toISOString()
+  };
+  const { data: newTrashItem, error: trashError } = await supabase
+    .from('trash_items')
+    .insert(trashEntry)
+    .select()
+    .single();
+  if (trashError) {
+    console.error('Error moviendo carpeta a la papelera de Supabase (trash_items):', trashError);
+    alert('Error al mover la carpeta a la papelera.');
+    return;
+  }
+  const { error: deleteError } = await supabase
+    .from('folders')
+    .delete()
+    .eq('id', folderId)
+    .eq('user_id', user.id);
+  if (deleteError) {
+    console.error('Error eliminando carpeta de Supabase (folders):', deleteError);
+    alert('Error al eliminar la carpeta de la base de datos.');
+    await supabase.from('trash_items').delete().eq('id', newTrashItem.id);
+    return;
+  }
+  console.log('Carpeta movida a la papelera en Supabase:', folderToTrash.name);
+  folders.splice(folderIndex, 1); 
+  if (newTrashItem) {
+      trash.push({
+          id: newTrashItem.id, 
+          type: 'folder',
+          data: folderToTrash, 
+          deletedAt: new Date(newTrashItem.deleted_at).getTime()
+      });
+  }
   renderFolders();
-  if (currentFolderId === folderId) showFolders();
+  if (currentFolderId === folderId) {
+    showFolders(); 
+  }
 }
 
-function moveTaskToTrash(folder, taskId, isFinished = false) {
+async function moveTaskToTrash(folder, taskId, isFinished = false) { 
   const arr = isFinished ? folder.finished : folder.tasks;
   const index = arr.findIndex(t => t.id === taskId);
   if (index === -1) return;
-
-  const task = arr[index];
-  arr.splice(index, 1);
-
-  trash.push({
-    id: generateId(),
-    type: 'task',
-    data: { folderId: folder.id, task },
-    deletedAt: Date.now()
-  });
-  saveDataToLocalStorage();
+  const task = { ...arr[index] }; 
+  
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado.");
+    return;
+  }
+  const trashEntry = {
+    user_id: user.id,
+    item_type: 'task',
+    original_item_id: task.id,
+    item_data: { ...task, folderId: folder.id }, 
+    deleted_at: new Date().toISOString()
+  };
+  const { data: newTrashItem, error: trashError } = await supabase
+    .from('trash_items')
+    .insert(trashEntry)
+    .select()
+    .single();
+  if (trashError) {
+    console.error('Error moviendo tarea a la papelera de Supabase (trash_items):', trashError);
+    alert('Error al mover la tarea a la papelera.');
+    return;
+  }
+  const { error: deleteError } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', taskId)
+    .eq('user_id', user.id);
+  if (deleteError) {
+    console.error('Error eliminando tarea de Supabase (tasks):', deleteError);
+    alert('Error al eliminar la tarea de la base de datos.');
+    await supabase.from('trash_items').delete().eq('id', newTrashItem.id);
+    return;
+  }
+  console.log('Tarea movida a la papelera en Supabase:', task.name);
+  arr.splice(index, 1); 
+  if (newTrashItem) {
+      trash.push({
+          id: newTrashItem.id,
+          type: 'task',
+          data: { ...task, folderId: folder.id },
+          deletedAt: new Date(newTrashItem.deleted_at).getTime()
+      });
+  }
+  if (tasksSection.style.display === 'block' && currentFolderId === folder.id) {
+    renderTasks();
+  }
 }
 
 function renderTrash() {
+  if (!trashList) return;
   trashList.innerHTML = '';
   if (trash.length === 0) {
     trashList.innerHTML = '<p>La papelera está vacía.</p>';
     return;
   }
-
   trash.forEach(item => {
     const trashItemDiv = document.createElement('div');
     trashItemDiv.className = 'trash-item';
-
     const titleSpan = document.createElement('span');
     titleSpan.textContent = item.type === 'folder'
       ? `Carpeta eliminada: ${item.data.name}`
-      : `Tarea eliminada: ${item.data.task.name}`;
-
+      : `Tarea eliminada: ${item.data.task ? item.data.task.name : 'Nombre no disponible'}`; 
     const buttonsDiv = document.createElement('div');
     buttonsDiv.className = 'trash-buttons';
-
     const restoreBtn = document.createElement('button');
     restoreBtn.textContent = 'Restaurar';
     restoreBtn.addEventListener('click', () => restoreFromTrash(item.id));
-
     const permDeleteBtn = document.createElement('button');
     permDeleteBtn.textContent = 'Eliminar';
     permDeleteBtn.addEventListener('click', () => permanentlyDelete(item.id));
-
     buttonsDiv.append(restoreBtn, permDeleteBtn);
     trashItemDiv.append(titleSpan, buttonsDiv);
     trashList.appendChild(trashItemDiv);
   });
 }
 
-function restoreFromTrash(trashItemId) {
-  const idx = trash.findIndex(t => t.id === trashItemId);
-  if (idx === -1) return;
-  const item = trash[idx];
-
-  if (item.type === 'folder') folders.push(item.data);
-  else if (item.type === 'task') {
-    const folder = folders.find(f => f.id === item.data.folderId);
-    if (folder) folder.tasks.push(item.data.task);
+async function restoreFromTrash(trashItemId) { 
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado.");
+    return;
   }
 
-  trash.splice(idx, 1);
-  saveDataToLocalStorage();
-  trashSection.style.display = 'block';
+  const trashItemIndex = trash.findIndex(t => t.id === trashItemId);
+  if (trashItemIndex === -1) return;
+  const itemToRestore = { ...trash[trashItemIndex] }; // Copia del item
+
+  // Eliminar de trash_items en Supabase PRIMERO
+  const { error: deleteTrashError } = await supabase
+    .from('trash_items')
+    .delete()
+    .eq('id', trashItemId)
+    .eq('user_id', user.id);
+
+  if (deleteTrashError) {
+    console.error("Error eliminando item de la papelera de Supabase:", deleteTrashError);
+    alert("Error al procesar la restauración (paso 1).");
+    return;
+  }
+
+  // Si se eliminó de la papelera de Supabase, proceder a reinsertar
+  if (itemToRestore.type === 'folder') {
+    const folderData = itemToRestore.data;
+    const folderToInsert = {
+        user_id: user.id,
+        name: folderData.name,
+        is_default_rewards: folderData.is_default_rewards || false
+        // No reinsertamos el ID original, dejamos que Supabase genere uno nuevo
+        // o si se quiere mantener el ID original, asegurarse que no colisione.
+        // Para simplificar, generamos nuevo ID.
+    };
+    const { data: restoredFolder, error: folderInsertError } = await supabase
+      .from('folders')
+      .insert(folderToInsert)
+      .select()
+      .single();
+
+    if (folderInsertError) {
+      console.error("Error restaurando carpeta en Supabase (folders):", folderInsertError);
+      alert("Error al restaurar la carpeta (paso 2).");
+      // Considerar reinsertar en trash_items si la restauración falla aquí
+      await supabase.from('trash_items').insert(itemToRestore); // Reinsertar el objeto original del trash
+      return;
+    }
+    
+    if (restoredFolder) {
+        const localRestoredFolder = { ...restoredFolder, tasks: [], finished: [] };
+        // Restaurar tareas y pasos de la carpeta
+        if (folderData.tasks && Array.isArray(folderData.tasks)) {
+            for (const task of folderData.tasks) {
+                const taskToInsert = { ...task, folder_id: restoredFolder.id, user_id: user.id, steps: undefined };
+                delete taskToInsert.id; 
+                const { data: restoredTask, error: taskInsertError } = await supabase.from('tasks').insert(taskToInsert).select().single();
+                if (taskInsertError) console.error("Error restaurando tarea de carpeta:", taskInsertError);
+                else if (restoredTask && task.steps && Array.isArray(task.steps)) {
+                    localRestoredFolder.tasks.push({...restoredTask, steps: []}); // Añadir tarea restaurada a la carpeta local
+                    for (let i = 0; i < task.steps.length; i++) {
+                        await supabase.from('steps').insert({ task_id: restoredTask.id, user_id: user.id, description: task.steps[i], step_order: i });
+                        localRestoredFolder.tasks.find(t => t.id === restoredTask.id).steps.push(task.steps[i]);
+                    }
+                }
+            }
+        }
+         if (folderData.finished && Array.isArray(folderData.finished)) {
+            for (const task of folderData.finished) {
+                const taskToInsert = { ...task, folder_id: restoredFolder.id, user_id: user.id, steps: undefined, is_finished: true };
+                delete taskToInsert.id; 
+                const { data: restoredTask, error: taskInsertError } = await supabase.from('tasks').insert(taskToInsert).select().single();
+                if (taskInsertError) console.error("Error restaurando tarea finalizada de carpeta:", taskInsertError);
+                else if (restoredTask && task.steps && Array.isArray(task.steps)) {
+                    localRestoredFolder.finished.push({...restoredTask, steps: []});
+                     for (let i = 0; i < task.steps.length; i++) {
+                        await supabase.from('steps').insert({ task_id: restoredTask.id, user_id: user.id, description: task.steps[i], step_order: i });
+                        localRestoredFolder.finished.find(t => t.id === restoredTask.id).steps.push(task.steps[i]);
+                    }
+                }
+            }
+        }
+        folders.push(localRestoredFolder);
+    }
+
+  } else if (itemToRestore.type === 'task') {
+    const taskData = itemToRestore.data.task;
+    const originalFolderId = itemToRestore.data.folderId;
+    const taskToInsert = {
+        folder_id: originalFolderId, 
+        user_id: user.id,
+        name: taskData.name,
+        is_expanded: taskData.isExpanded || false,
+        scheduled_timestamp: taskData.scheduledTimestamp ? new Date(taskData.scheduledTimestamp).toISOString() : null,
+        current_step_index: taskData.currentStepIndex || 0,
+        total_time: taskData.totalTime || null,
+        is_reward: taskData.isReward || false,
+        is_finished: taskData.is_finished || false 
+    };
+    const { data: restoredTask, error: taskInsertError } = await supabase
+        .from('tasks')
+        .insert(taskToInsert)
+        .select()
+        .single();
+    
+    if (taskInsertError) {
+        console.error("Error restaurando tarea en Supabase (tasks):", taskInsertError);
+        alert("Error al restaurar la tarea (paso 2).");
+        await supabase.from('trash_items').insert(itemToRestore);
+        return;
+    }
+    if (restoredTask && taskData.steps && Array.isArray(taskData.steps)) {
+        for (let i = 0; i < taskData.steps.length; i++) {
+            await supabase.from('steps').insert({ task_id: restoredTask.id, user_id: user.id, description: taskData.steps[i], step_order: i });
+        }
+    }
+    if(restoredTask) {
+        const folder = folders.find(f => f.id === originalFolderId);
+        if (folder) {
+            const localTask = { ...restoredTask, steps: taskData.steps || [], scheduledTimestamp: restoredTask.scheduled_timestamp ? new Date(restoredTask.scheduled_timestamp).getTime() : null };
+            if (localTask.is_finished) folder.finished.push(localTask);
+            else folder.tasks.push(localTask);
+        }
+    }
+  }
+
+  trash.splice(trashItemIndex, 1); 
   renderTrash();
   renderFolders();
+  if (itemToRestore.type === 'task') renderTasks(); 
 }
 
-function permanentlyDelete(trashItemId) {
-  trash = trash.filter(t => t.id !== trashItemId);
-  saveDataToLocalStorage();
-  renderTrash();
+async function permanentlyDelete(trashItemId) { 
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const trashItemIndex = trash.findIndex(t => t.id === trashItemId);
+  if (trashItemIndex === -1) return;
+
+  const { error } = await supabase
+    .from('trash_items')
+    .delete()
+    .eq('id', trashItemId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error("Error eliminando permanentemente de Supabase:", error);
+    alert("Error al eliminar permanentemente. Inténtalo de nuevo.");
+  } else {
+    trash.splice(trashItemIndex, 1);
+    renderTrash();
+    console.log("Item eliminado permanentemente de la papelera de Supabase.");
+  }
 }
+
+async function emptyTrash() { 
+    const user = await getCurrentUser();
+    if (!user) return;
+
+    const { error } = await supabase
+        .from('trash_items')
+        .delete()
+        .eq('user_id', user.id);
+
+    if (error) {
+        console.error("Error vaciando la papelera en Supabase:", error);
+        alert("Error al vaciar la papelera. Inténtalo de nuevo.");
+    } else {
+        trash = [];
+        renderTrash();
+        console.log("Papelera vaciada en Supabase.");
+    }
+}
+
 
 function cleanOldTrashItems() {
+  // Esta lógica ahora debería ser manejada por Supabase (ej. con políticas o funciones programadas)
+  // o al cargar los datos de la papelera. Por ahora, solo opera localmente.
   const now = Date.now();
   const fifteenDaysMs = 15 * 24 * 60 * 60 * 1000;
   trash = trash.filter(item => (now - item.deletedAt) < fifteenDaysMs);
-  saveDataToLocalStorage();
+  // No llamar a saveDataToLocalStorage()
 }
 
-/************************************************************************
- * EXPORTAR CARPETA
- ************************************************************************/
 function exportFolder(folder) {
   const dataToExport = { version: 1, folders: [folder] };
   const jsonString = JSON.stringify(dataToExport);
@@ -888,90 +1098,141 @@ function exportFolder(folder) {
   document.body.removeChild(a);
 }
 
-/************************************************************************
- * TAREAS (MODIFICACIONES PRINCIPALES)
- ************************************************************************/
 function createTask(folderId, taskName) {
   const folder = folders.find(f => f.id === folderId);
   if (!folder) return;
-  // Si la carpeta es de recompensas, no permitimos crear tareas
-  if (folder.id === rewardsFolderId) return;
-  // Leer el valor opcional del input de tiempo (en minutos) y convertirlo a segundos
+  if (_rewardsFolderObject && folder.id === _rewardsFolderObject.id) return; 
   let totalTime = null;
   if (newTaskTimeInput.value.trim() !== "") {
-    totalTime = parseInt(newTaskTimeInput.value, 10) * 60; // Convertir minutos a segundos
+    totalTime = parseInt(newTaskTimeInput.value, 10) * 60; 
   }
   const newTask = {
-    id: generateId(),
     name: taskName,
     steps: [],
     isExpanded: false,
     scheduledTimestamp: null,
     currentStepIndex: 0,
-    totalTime: totalTime, // Tiempo total en segundos (opcional)
-    stepTimes: [] // Se calculará a medida que se agreguen pasos
+    totalTime: totalTime, 
+    stepTimes: [] 
   };
-  folder.tasks.push(newTask);
-  // Si la tarea tiene tiempo total, recalcular los tiempos de los pasos (incluso si no hay pasos aún)
-  if (newTask.totalTime) {
-    recalcStepTimes(newTask);
+  saveTaskToSupabase(folder.id, newTask); 
+}
+
+async function saveTaskToSupabase(folderId, taskData) {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede guardar la tarea.");
+    return;
   }
-  saveDataToLocalStorage();
-  renderTasks();
+  const taskToInsert = {
+    folder_id: folderId,
+    user_id: user.id,
+    name: taskData.name,
+    is_expanded: taskData.isExpanded || false,
+    scheduled_timestamp: taskData.scheduledTimestamp ? new Date(taskData.scheduledTimestamp).toISOString() : null,
+    current_step_index: taskData.currentStepIndex || 0,
+    total_time: taskData.totalTime || null,
+    is_reward: taskData.isReward || false,
+    is_finished: false 
+  };
+  const { data: insertedTask, error } = await supabase
+    .from('tasks')
+    .insert(taskToInsert)
+    .select()
+    .single();
+  if (error) {
+    console.error('Error guardando tarea en Supabase:', error);
+    alert('Error al crear la tarea. Inténtalo de nuevo.');
+  } else if (insertedTask) {
+    console.log('Tarea guardada en Supabase:', insertedTask);
+    const folder = folders.find(f => f.id === folderId);
+    if (folder) {
+      const newTaskForLocal = {
+        id: insertedTask.id,
+        name: insertedTask.name,
+        steps: [], 
+        isExpanded: insertedTask.is_expanded,
+        scheduledTimestamp: insertedTask.scheduled_timestamp ? new Date(insertedTask.scheduled_timestamp).getTime() : null,
+        currentStepIndex: insertedTask.current_step_index,
+        totalTime: insertedTask.total_time,
+        isReward: insertedTask.is_reward
+      };
+      folder.tasks.push(newTaskForLocal);
+      if (newTaskForLocal.totalTime) {
+        recalcStepTimes(newTaskForLocal); 
+      }
+      renderTasks(); 
+    }
+  }
 }
 
 function renderTasks() {
+  if (!tasksList || !completedMiniFolderList) return;
   console.log('renderTasks ejecutado para currentFolderId:', currentFolderId);
   const folder = folders.find(f => f.id === currentFolderId);
   if (!folder) {
     console.log('Carpeta no encontrada en renderTasks:', currentFolderId);
+    tasksList.innerHTML = ''; 
+    completedMiniFolderList.innerHTML = '';
     return;
   }
-
   tasksList.innerHTML = '';
   completedMiniFolderList.innerHTML = '';
-
   folder.tasks.forEach(task => tasksList.appendChild(buildPendingTaskItem(folder, task)));
-
-  // Si la carpeta es de recompensas, ocultamos ambos inputs
-  if (folder.id === rewardsFolderId) {
-    newTaskInput.style.display = 'none';
-    newTaskTimeInput.style.display = 'none';
-  } else {
-    newTaskInput.style.display = 'block';
-    newTaskTimeInput.style.display = 'block';
+  if (newTaskInput && newTaskTimeInput) {
+      if (_rewardsFolderObject && folder.id === _rewardsFolderObject.id) {
+        newTaskInput.style.display = 'none';
+        newTaskTimeInput.style.display = 'none';
+      } else {
+        newTaskInput.style.display = 'block';
+        newTaskTimeInput.style.display = 'block';
+      }
   }
-
-  completedMiniFolder.style.display = 'block';
-  completedMiniFolderList.innerHTML = '';
+  if (completedMiniFolder) completedMiniFolder.style.display = 'block';
   folder.finished.forEach(task => completedMiniFolderList.appendChild(buildFinishedTaskItem(folder, task)));
-
-  document.querySelector('.mini-folder-icon').onclick = () => {
-    completedMiniFolder.classList.toggle('expanded');
+  const miniFolderIcon = document.querySelector('.mini-folder-icon');
+  if (miniFolderIcon) miniFolderIcon.onclick = () => {
+    if (completedMiniFolder) completedMiniFolder.classList.toggle('expanded');
   };
 }
 
 function renameTask(task) {
   const taskElement = document.querySelector(`[data-task-id="${task.id}"]`);
   const nameSpan = taskElement.querySelector('.task-name-text');
-
   const editInput = document.createElement('input');
   editInput.type = 'text';
   editInput.className = 'task-edit-input';
   editInput.value = task.name;
-
-  const finishEdit = () => {
+  const finishEdit = async () => { 
     const newName = editInput.value.trim();
-    if (newName && newName !== task.name) {
-      task.name = newName;
-      saveDataToLocalStorage();
-      renderTasks();
+    const oldName = task.name;
+    if (newName && newName !== oldName) {
+      const user = await getCurrentUser();
+      if (!user) {
+        console.error("Usuario no autenticado. No se puede renombrar la tarea.");
+        nameSpan.textContent = oldName; 
+        editInput.replaceWith(nameSpan);
+        return;
+      }
+      const { error } = await supabase
+        .from('tasks')
+        .update({ name: newName })
+        .eq('id', task.id)
+        .eq('user_id', user.id);
+      if (error) {
+        console.error('Error renombrando tarea en Supabase:', error);
+        alert('Error al renombrar la tarea. Inténtalo de nuevo.');
+        nameSpan.textContent = oldName; 
+      } else {
+        console.log('Tarea renombrada en Supabase.');
+        task.name = newName; 
+        renderTasks(); 
+      }
     } else {
-      nameSpan.textContent = task.name;
+      nameSpan.textContent = oldName; 
     }
     editInput.replaceWith(nameSpan);
   };
-
   editInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') finishEdit();
     if (e.key === 'Escape') {
@@ -979,9 +1240,7 @@ function renameTask(task) {
       editInput.replaceWith(nameSpan);
     }
   });
-
   editInput.addEventListener('blur', finishEdit);
-
   nameSpan.replaceWith(editInput);
   editInput.focus();
 }
@@ -991,29 +1250,24 @@ function buildPendingTaskItem(folder, task) {
   taskDiv.className = 'task';
   taskDiv.dataset.taskId = task.id;
   taskDiv.draggable = true;
-
   taskDiv.addEventListener('dragstart', handleTaskDragStart);
   taskDiv.addEventListener('dragover', handleTaskDragOver);
   taskDiv.addEventListener('drop', handleTaskDrop);
-
   const taskHeader = document.createElement('div');
   taskHeader.className = 'task-header';
-
   const taskNameSpan = document.createElement('span');
   taskNameSpan.className = 'task-name-text';
   taskNameSpan.textContent = task.name;
-
   const taskButtons = document.createElement('div');
   taskButtons.className = 'task-buttons';
-
-  if (folder.id === rewardsFolderId || task.isReward) {
+  if ((_rewardsFolderObject && folder.id === _rewardsFolderObject.id) || task.isReward) {
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = '🗑';
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       showConfirm(`¿Eliminar "${task.name}"?`, () => {
         moveTaskToTrash(folder, task.id, false);
-        saveDataToLocalStorage();
+        // No llamar a saveDataToLocalStorage()
         renderTasks();
       });
     });
@@ -1025,7 +1279,6 @@ function buildPendingTaskItem(folder, task) {
       e.stopPropagation();
       toggleTaskStepsVisibility(task, taskStepsDiv, toggleBtn);
     });
-
     const editBtn = document.createElement('button');
     editBtn.textContent = '✏';
     editBtn.addEventListener('click', (e) => {
@@ -1035,28 +1288,24 @@ function buildPendingTaskItem(folder, task) {
       const taskObj = folder.tasks.find(t => t.id === taskId);
       renameTask(taskObj);
     });
-
     const moveBtn = document.createElement('button');
     moveBtn.textContent = '↪';
     moveBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       inlineMoveTask(task, false);
     });
-
     const playBtn = document.createElement('button');
     playBtn.textContent = '▶';
     playBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       startPresentation(task);
     });
-
     const scheduleBtn = document.createElement('button');
     scheduleBtn.textContent = '📅';
     scheduleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       openScheduleModal(task);
     });
-
     const menuBtn = document.createElement('button');
     menuBtn.className = 'menu-btn';
     menuBtn.textContent = '●●●';
@@ -1073,11 +1322,9 @@ function buildPendingTaskItem(folder, task) {
         });
       }, 100);
     });
-
     const taskMenu = document.createElement('div');
     taskMenu.className = 'task-menu';
     taskMenu.style.display = 'none';
-
     const editMenuItem = document.createElement('button');
     editMenuItem.textContent = 'Editar';
     editMenuItem.addEventListener('click', (e) => {
@@ -1085,7 +1332,6 @@ function buildPendingTaskItem(folder, task) {
       renameTask(task);
       taskMenu.style.display = 'none';
     });
-
     const moveMenuItem = document.createElement('button');
     moveMenuItem.textContent = 'Mover';
     moveMenuItem.addEventListener('click', (e) => {
@@ -1093,7 +1339,6 @@ function buildPendingTaskItem(folder, task) {
       inlineMoveTask(task, false);
       taskMenu.style.display = 'none';
     });
-
     const scheduleMenuItem = document.createElement('button');
     scheduleMenuItem.textContent = 'Programar';
     scheduleMenuItem.addEventListener('click', (e) => {
@@ -1101,19 +1346,17 @@ function buildPendingTaskItem(folder, task) {
       openScheduleModal(task);
       taskMenu.style.display = 'none';
     });
-
     const deleteMenuItem = document.createElement('button');
     deleteMenuItem.textContent = 'Eliminar';
     deleteMenuItem.addEventListener('click', (e) => {
       e.stopPropagation();
       showConfirm(`¿Eliminar la tarea "${task.name}"?`, () => {
         moveTaskToTrash(folder, task.id, false);
-        saveDataToLocalStorage();
+        // No llamar a saveDataToLocalStorage()
         renderTasks();
       });
       taskMenu.style.display = 'none';
     });
-
     const shareMenuItem = document.createElement('button');
     shareMenuItem.textContent = 'Compartir';
     shareMenuItem.addEventListener('click', (e) => {
@@ -1121,17 +1364,13 @@ function buildPendingTaskItem(folder, task) {
       shareTask(task);
       taskMenu.style.display = 'none';
     });
-
     taskMenu.append(editMenuItem, moveMenuItem, scheduleMenuItem, deleteMenuItem, shareMenuItem);
     taskButtons.append(toggleBtn, playBtn, menuBtn, taskMenu);
   }
-
   taskHeader.append(taskNameSpan, taskButtons);
-
   const taskStepsDiv = document.createElement('div');
   taskStepsDiv.className = 'task-steps';
   taskStepsDiv.style.display = task.isExpanded ? 'flex' : 'none';
-
   const newStepContainer = document.createElement('div');
   newStepContainer.className = 'new-step-container';
   const newStepInput = document.createElement('input');
@@ -1143,24 +1382,19 @@ function buildPendingTaskItem(folder, task) {
       addNewStep(task, newStepInput);
     }
   });
-
   newStepContainer.appendChild(newStepInput);
   taskStepsDiv.appendChild(newStepContainer);
-
   task.steps.forEach((step, index) => {
     const stepDiv = document.createElement('div');
     stepDiv.className = 'step-item';
     stepDiv.draggable = true;
     stepDiv.dataset.stepIndex = index;
-
     stepDiv.addEventListener('dragstart', handleStepDragStart);
     stepDiv.addEventListener('dragover', handleStepDragOver);
     stepDiv.addEventListener('drop', (ev) => handleStepDrop(ev, task));
-
     const stepTextSpan = document.createElement('span');
     stepTextSpan.className = 'step-text';
     stepTextSpan.textContent = step;
-
     let completedIndex = 0;
     if (currentPresentationTask && currentPresentationTask.id === task.id) {
       completedIndex = currentStepIndex;
@@ -1170,14 +1404,11 @@ function buildPendingTaskItem(folder, task) {
     if (index < completedIndex) {
       stepTextSpan.classList.add('completed-step');
     }
-
     const stepButtons = document.createElement('div');
     stepButtons.className = 'step-buttons';
-
     const editStepBtn = document.createElement('button');
     editStepBtn.textContent = '✏';
     editStepBtn.addEventListener('click', () => inlineEditStep(task, index));
-
     const deleteStepBtn = document.createElement('button');
     deleteStepBtn.textContent = '🗑';
     deleteStepBtn.addEventListener('click', () => {
@@ -1185,12 +1416,10 @@ function buildPendingTaskItem(folder, task) {
         removeStep(task, index);
       });
     });
-
     stepButtons.append(editStepBtn, deleteStepBtn);
     stepDiv.append(stepTextSpan, stepButtons);
     taskStepsDiv.appendChild(stepDiv);
   });
-
   taskDiv.append(taskHeader, taskStepsDiv);
   return taskDiv;
 }
@@ -1201,128 +1430,140 @@ function buildFinishedTaskItem(folder, task) {
   taskDiv.dataset.taskId = task.id;
   taskDiv.style.background = 'transparent';
   taskDiv.style.border = '1px solid rgba(255, 215, 0, 0.3)';
-
   const taskHeader = document.createElement('div');
   taskHeader.className = 'task-header';
   taskHeader.style.padding = '0.3rem';
-
   const taskNameSpan = document.createElement('span');
   taskNameSpan.className = 'task-name-text';
   taskNameSpan.textContent = `✅ ${task.name}`;
   taskNameSpan.style.color = '#ffd700';
-
   const taskButtons = document.createElement('div');
   taskButtons.className = 'task-buttons';
-
   const restoreBtn = document.createElement('button');
   restoreBtn.textContent = '↩';
   restoreBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     restoreFromMiniFolder(folder, task.id);
   });
-
   const deleteBtn = document.createElement('button');
   deleteBtn.textContent = '🗑';
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       showConfirm(`¿Eliminar "${task.name}"?`, () => {
         moveTaskToTrash(folder, task.id, true);
-        saveDataToLocalStorage();
+        // saveDataToLocalStorage(); // Eliminado
         renderTasks();
       });
     });
-
   taskButtons.append(restoreBtn, deleteBtn);
   taskHeader.append(taskNameSpan, taskButtons);
   taskDiv.appendChild(taskHeader);
-
   return taskDiv;
 }
 
-/************************************************************************
- * COMPLETAR TAREA
- ************************************************************************/
 function openRewardSection(folder, task) {
   folderOfTaskBeingRewarded = folder;
   taskBeingRewarded = task;
-  tasksSection.style.display = 'none';
-  rewardSection.style.display = 'block';
+  showSection(rewardSection);
 }
 
-function moveTaskToMiniFolder(folder, task) {
-  folder.tasks = folder.tasks.filter(t => t.id !== task.id);
+async function markTaskAsFinishedInSupabase(task) {
+    if (!task || !task.id) return false;
+    const user = await getCurrentUser();
+    if (!user) return false;
 
-  if (task.reward) {
-    const rewardsFolder = folders.find(f => f.id === rewardsFolderId);
-    if (rewardsFolder) {
-      rewardsFolder.tasks.unshift(task);
+    const { error } = await supabase
+        .from('tasks')
+        .update({ is_finished: true })
+        .eq('id', task.id)
+        .eq('user_id', user.id);
+
+    if (error) {
+        console.error("Error marcando tarea como finalizada en Supabase:", error);
+        alert("Error al finalizar la tarea.");
+        return false;
+    } else {
+        console.log("Tarea marcada como finalizada en Supabase:", task.id);
+        task.is_finished = true; // Actualizar objeto local
+        return true;
     }
-  } else {
-    folder.finished.push(task);
+}
+
+async function moveTaskToMiniFolder(folder, task) { 
+  const success = await markTaskAsFinishedInSupabase(task);
+  if (!success) return;
+
+  const localFolder = folders.find(f => f.id === folder.id);
+  if (localFolder) {
+    localFolder.tasks = localFolder.tasks.filter(t => t.id !== task.id);
+    if (!localFolder.finished) localFolder.finished = [];
+    localFolder.finished.push(task); 
   }
 
-  folderOfTaskBeingRewarded = null;
-  taskBeingRewarded = null;
-  saveDataToLocalStorage();
   renderTasks();
-  renderFolders();
+  // renderFolders(); // No siempre es necesario re-renderizar todas las carpetas
 }
 
-function restoreFromMiniFolder(folder, taskId) {
+async function restoreFromMiniFolder(folder, taskId) { 
   const idx = folder.finished.findIndex(t => t.id === taskId);
   if (idx === -1) return;
-  const t = folder.finished[idx];
-  // Reiniciar el índice de paso y cualquier otro estado relacionado
-  t.currentStepIndex = 0;
-  // ...posible reinicio de otros estados de pasos si fuese necesario...
+  const taskToRestore = folder.finished[idx];
+
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({ is_finished: false, scheduled_timestamp: null, current_step_index: 0 }) 
+    .eq('id', taskToRestore.id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error("Error restaurando tarea (actualizando is_finished a false) en Supabase:", error);
+    alert("Error al restaurar la tarea.");
+    return;
+  }
+
+  taskToRestore.is_finished = false;
+  taskToRestore.scheduledTimestamp = null; 
+  taskToRestore.currentStepIndex = 0; 
+
   folder.finished.splice(idx, 1);
-  folder.tasks.push(t);
-  saveDataToLocalStorage();
+  if (!folder.tasks) folder.tasks = [];
+  folder.tasks.push(taskToRestore);
+  
   renderTasks();
 }
 
-/************************************************************************
- * PASOS
- ************************************************************************/
-// Función para compartir tarea
 function shareTask(task) {
   taskToShare = task;
   const shareModal = document.getElementById('shareModal');
   shareModal.style.display = 'flex';
-
-  // Añadir listener para cerrar el modal al hacer clic fuera
-  setTimeout(() => { // Pequeño retraso para evitar que el clic que abre el modal lo cierre inmediatamente
+  setTimeout(() => { 
     document.addEventListener('click', closeShareModalOnClickOutside);
   }, 50);
 }
 
 function closeShareModalOnClickOutside(event) {
   const shareModal = document.getElementById('shareModal');
-  const shareButton = document.querySelector('.share-button'); // Asumiendo que hay un botón que abre el modal
-
-  // Si el clic no fue dentro del modal y no fue en el botón que lo abre
-  if (!shareModal.contains(event.target) && !event.target.closest('.share-button')) {
+  if (shareModal && !shareModal.contains(event.target) && !event.target.closest('.share-button') && !event.target.closest('.menu-btn')) { 
     shareModal.style.display = 'none';
-    document.removeEventListener('click', closeShareModalOnClickOutside); // Eliminar el listener
+    document.removeEventListener('click', closeShareModalOnClickOutside); 
   }
 }
 
-// Funciones para generar enlaces de compartir
 function formatTaskForSharing(task) {
   let shareText = `Tarea: ${task.name}`;
-
   if (task.totalTime) {
     const minutes = Math.floor(task.totalTime / 60);
     shareText += `\nTiempo estimado: ${minutes} minutos`;
   }
-
   if (task.steps && task.steps.length > 0) {
     shareText += `\n\nPasos:`;
     task.steps.forEach((step, index) => {
       shareText += `\n${index + 1}. ${step}`;
     });
   }
-
   return shareText;
 }
 
@@ -1330,28 +1571,21 @@ function getWhatsAppShareLink(task) {
   const text = formatTaskForSharing(task);
   return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 }
-
 function getTelegramShareLink(task) {
   const text = formatTaskForSharing(task);
   return `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
 }
-
 function getEmailShareLink(task) {
   const subject = `Tarea: ${task.name}`;
-  const body = formatTaskForSharing(task); // Usar el formato completo para el cuerpo del correo
+  const body = formatTaskForSharing(task); 
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 function addNewStep(task, inputElem) {
   const text = inputElem.value.trim();
   if (text) {
-    task.steps.push(text);
     inputElem.value = '';
-    if (task.totalTime) {
-      recalcStepTimes(task);
-    }
-    saveDataToLocalStorage();
-    renderTasks();
+    saveStepToSupabase(task, text); 
     setTimeout(() => {
       const taskElement = document.querySelector(`[data-task-id="${task.id}"]`);
       if (taskElement) {
@@ -1363,12 +1597,72 @@ function addNewStep(task, inputElem) {
 }
 
 function removeStep(task, stepIndex) {
-  task.steps.splice(stepIndex, 1);
-  if (task.totalTime) {
-    recalcStepTimes(task);
+  deleteStepFromSupabase(task, stepIndex);
+}
+
+async function deleteStepFromSupabase(task, stepIndex) {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede eliminar el paso.");
+    return;
   }
-  saveDataToLocalStorage();
-  renderTasks();
+  if (!task || !task.id || task.steps[stepIndex] === undefined) {
+    console.error("Tarea no válida, sin ID, o índice de paso incorrecto.");
+    return;
+  }
+  const stepDescriptionToDelete = task.steps[stepIndex];
+  const { error } = await supabase
+    .from('steps')
+    .delete()
+    .eq('task_id', task.id)
+    .eq('user_id', user.id)
+    .eq('description', stepDescriptionToDelete) 
+    .eq('step_order', stepIndex); 
+  if (error) {
+    console.error('Error eliminando paso de Supabase:', error);
+    alert('Error al eliminar el paso. Inténtalo de nuevo.');
+  } else {
+    console.log('Paso eliminado de Supabase.');
+    task.steps.splice(stepIndex, 1); 
+    if (task.totalTime) {
+      recalcStepTimes(task);
+    }
+    renderTasks();
+  }
+}
+
+async function saveStepToSupabase(task, stepDescription) {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede guardar el paso.");
+    return;
+  }
+  if (!task || !task.id) {
+    console.error("Tarea no válida o sin ID para guardar el paso.");
+    return;
+  }
+  const stepToInsert = {
+    task_id: task.id,
+    user_id: user.id,
+    description: stepDescription,
+    step_order: task.steps.length 
+  };
+  const { data: insertedStep, error } = await supabase
+    .from('steps')
+    .insert(stepToInsert)
+    .select()
+    .single();
+  if (error) {
+    console.error('Error guardando paso en Supabase:', error);
+    alert('Error al añadir el paso. Inténtalo de nuevo.');
+  } else if (insertedStep) {
+    console.log('Paso guardado en Supabase:', insertedStep);
+    task.steps.push(insertedStep.description); 
+    if (task.totalTime) {
+      recalcStepTimes(task); 
+    }
+    renderTasks(); 
+  }
 }
 
 function inlineEditStep(task, stepIndex) {
@@ -1383,25 +1677,42 @@ function inlineEditStep(task, stepIndex) {
     return;
   }
   const stepTextSpan = stepElement.querySelector('.step-text');
-
   const editInput = document.createElement('input');
   editInput.type = 'text';
   editInput.className = 'step-edit-input';
   editInput.value = task.steps[stepIndex];
-
-  const finishEdit = () => {
-    const newStep = editInput.value.trim();
-    if (newStep && newStep !== task.steps[stepIndex]) {
-      task.steps[stepIndex] = newStep;
-      saveDataToLocalStorage();
-      renderTasks();
+  const finishEdit = async () => { 
+    const newStepDescription = editInput.value.trim();
+    const oldStepDescription = task.steps[stepIndex];
+    if (newStepDescription && newStepDescription !== oldStepDescription) {
+      const user = await getCurrentUser();
+      if (!user) {
+        console.error("Usuario no autenticado. No se puede editar el paso.");
+        stepTextSpan.textContent = oldStepDescription; 
+        editInput.replaceWith(stepTextSpan);
+        return;
+      }
+      const { error } = await supabase
+        .from('steps')
+        .update({ description: newStepDescription })
+        .eq('task_id', task.id)
+        .eq('user_id', user.id)
+        .eq('description', oldStepDescription) 
+        .eq('step_order', stepIndex);
+      if (error) {
+        console.error('Error actualizando paso en Supabase:', error);
+        alert('Error al editar el paso. Inténtalo de nuevo.');
+        stepTextSpan.textContent = oldStepDescription; 
+      } else {
+        console.log('Paso actualizado en Supabase.');
+        task.steps[stepIndex] = newStepDescription; 
+        renderTasks(); 
+      }
     } else {
-      // Si no hay cambio o el nuevo paso está vacío, simplemente restaurar el texto original
-      stepTextSpan.textContent = task.steps[stepIndex];
+      stepTextSpan.textContent = oldStepDescription;
     }
     editInput.replaceWith(stepTextSpan);
   };
-
   editInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') finishEdit();
     if (e.key === 'Escape') {
@@ -1409,29 +1720,44 @@ function inlineEditStep(task, stepIndex) {
       editInput.replaceWith(stepTextSpan);
     }
   });
-
   editInput.addEventListener('blur', finishEdit);
-
   stepTextSpan.replaceWith(editInput);
   editInput.focus();
 }
 
-function toggleTaskStepsVisibility(task, stepsDiv, toggleBtn) {
+async function toggleTaskStepsVisibility(task, stepsDiv, toggleBtn) { 
   task.isExpanded = !task.isExpanded;
   stepsDiv.style.display = task.isExpanded ? 'flex' : 'none';
   toggleBtn.textContent = task.isExpanded ? '▼' : '◀';
-  saveDataToLocalStorage();
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede actualizar la tarea.");
+    task.isExpanded = !task.isExpanded;
+    stepsDiv.style.display = task.isExpanded ? 'flex' : 'none';
+    toggleBtn.textContent = task.isExpanded ? '▼' : '◀';
+    return;
+  }
+  const { error } = await supabase
+    .from('tasks')
+    .update({ is_expanded: task.isExpanded })
+    .eq('id', task.id)
+    .eq('user_id', user.id);
+  if (error) {
+    console.error('Error actualizando is_expanded en Supabase:', error);
+    task.isExpanded = !task.isExpanded;
+    stepsDiv.style.display = task.isExpanded ? 'flex' : 'none';
+    toggleBtn.textContent = task.isExpanded ? '▼' : '◀';
+    alert('Error al actualizar la visibilidad de los pasos.');
+  } else {
+    console.log('is_expanded actualizado en Supabase para la tarea:', task.id);
+  }
 }
 
-/************************************************************************
- * PRESENTACIÓN
- ************************************************************************/
 function startPresentation(task) {
   presentationSteps = task.steps;
   currentStepIndex = task.currentStepIndex || 0;
   presentationOpen = true;
   currentPresentationTask = task;
-
   if (task.totalTime) {
     if (task.steps.length > 0) {
       if (!task.stepTimes || task.stepTimes.length !== task.steps.length) {
@@ -1439,16 +1765,11 @@ function startPresentation(task) {
       }
       currentStepCountdown = task.stepTimes[currentStepIndex];
     } else {
-      // Si hay tiempo total pero no hay pasos, el contador es el tiempo total
       currentStepCountdown = task.totalTime;
     }
   } else {
-    // Si no hay tiempo total, el contador es 0
     currentStepCountdown = 0;
   }
-
-  // Se elimina el pushState de presentación para no interferir con la navegación entre carpetas
-  // history.pushState({ presentation: true }, '', '');
   presentationModal.style.display = 'flex';
   showPresentationStep();
   startTimer();
@@ -1459,61 +1780,47 @@ function startPresentation(task) {
   requestWakeLock();
 }
 
-// Modificar el manejador de clic para descartar clics en el botón de minimizar/maximizar
 function handlePresentationClick(e) {
-  // Si el clic proviene del botón de minimizar, salir sin realizar acción.
   if (e.target.closest('#minimizePresentationBtn')) return;
-  
   const now = Date.now();
   if (now - lastPresentationInteraction < PRESENTATION_DEBOUNCE_MS) return;
   lastPresentationInteraction = now;
-  
   const halfWidth = window.innerWidth / 2;
   if (e.clientX > halfWidth) {
-    nextStep(); // Click derecho: avanzar
+    nextStep(); 
   } else {
-    prevStep(); // Click izquierdo: retroceder
+    prevStep(); 
   }
 }
 
-let touchStartX = 0; // Se conserva o agrega si no existe
-
+let touchStartX = 0; 
 function handleTouchStart(e) {
-    // Capturamos la posición inicial del toque
     if (e.touches && e.touches[0]) {
         touchStartX = e.touches[0].clientX;
     }
 }
 
-// Modificar el manejador de toque de forma similar:
 function handleTouchEnd(e) {
   const now = Date.now();
   if (now - lastPresentationInteraction < PRESENTATION_DEBOUNCE_MS) return;
   lastPresentationInteraction = now;
-  
   if (e.changedTouches && e.changedTouches[0]) {
     const touchEndX = e.changedTouches[0].clientX;
     const halfWidth = window.innerWidth / 2;
     if (touchEndX > halfWidth) {
-      nextStep(); // Touch derecho: avanzar
+      nextStep(); 
     } else {
-      prevStep(); // Touch izquierdo: retroceder
+      prevStep(); 
     }
   }
 }
 
-// Modificar la función prevStep para que reste el tiempo consumido, permitiendo números negativos
 function prevStep() {
   if (currentStepIndex > 0) {
     if (currentPresentationTask && currentPresentationTask.totalTime) {
-      // Guardamos el tiempo actual antes de retroceder
       const currentBaseTime = currentPresentationTask.stepTimes[currentStepIndex];
       currentStepIndex--;
-      
-      // Calculamos cuánto tiempo se ha consumido del paso actual
       const timeUsed = currentBaseTime - currentStepCountdown;
-      
-      // Al retroceder, tomamos el tiempo base del paso anterior y le restamos el tiempo usado
       currentStepCountdown = currentPresentationTask.stepTimes[currentStepIndex] - timeUsed;
     } else {
       currentStepIndex--;
@@ -1525,7 +1832,6 @@ function prevStep() {
 function nextStep() {
   if (currentStepIndex < presentationSteps.length - 1) {
     if (currentPresentationTask && currentPresentationTask.totalTime) {
-      // Al avanzar mantenemos el comportamiento de sumar el tiempo restante
       let leftover = currentStepCountdown;
       currentStepIndex++;
       let baseTime = currentPresentationTask.stepTimes[currentStepIndex];
@@ -1547,37 +1853,24 @@ function showPresentationStep() {
 function showCongratulations() {
   presentationStep.style.fontSize = '3rem';
   presentationStep.textContent = '¡Felicidades! Has completado la tarea.';
-  
-  // Removemos los listeners de toque ya que no se usan en este estado.
   presentationModal.removeEventListener('touchstart', handleTouchStart);
   presentationModal.removeEventListener('touchend', handleTouchEnd);
-  
-  // Enganchamos el listener que determina el siguiente paso según la zona clickeada y el tiempo obtenido.
   presentationModal.addEventListener('click', handleFinalClick);
 }
 
-function handleFinalClick(e) {
-  // Removemos el listener para evitar llamadas duplicadas
+async function handleFinalClick(e) { 
   presentationModal.removeEventListener('click', handleFinalClick);
-
-  // Capturamos la carpeta y tarea actuales antes de forzar el cierre
   const currentFolder = folders.find(f => f.id === currentFolderId);
-  const currentTask = currentPresentationTask;
-  
-  // Guardamos el tiempo restante antes de cerrar la presentación
+  const taskToFinish = currentPresentationTask; 
   const savedTime = currentStepCountdown;
-
-  // Forzamos el cierre de la presentación
-  closePresentation(true);
-  
-  // Si se pulsó en la mitad derecha y el tiempo guardado es positivo, mostramos la recompensa
+  closePresentation(true); 
   if (e.clientX > window.innerWidth / 2 && savedTime > 0) {
-    if (currentFolder && currentTask) {
-      openRewardSection(currentFolder, currentTask);
+    if (currentFolder && taskToFinish) {
+      openRewardSection(currentFolder, taskToFinish); 
     }
   } else {
-    if (currentFolder && currentTask) {
-      moveTaskToMiniFolder(currentFolder, currentTask);
+    if (currentFolder && taskToFinish) {
+      await moveTaskToMiniFolder(currentFolder, taskToFinish); 
     }
   }
 }
@@ -1592,7 +1885,6 @@ function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (currentPresentationTask && currentPresentationTask.totalTime) {
-      // Se decrementa el contador sin avanzar automáticamente al siguiente paso
       currentStepCountdown--;
       timerDisplay.textContent = formatTime(currentStepCountdown);
     } else {
@@ -1602,9 +1894,6 @@ function startTimer() {
   }, 1000);
 }
 
-/************************************************************************
- * FUNCIONALIDAD DE MINIMIZAR/EXPANDIR PRESENTACIÓN CON DRAG POR TOUCH
- ************************************************************************/
 function togglePresentationMinimized() {
   isPresentationMinimized = !isPresentationMinimized;
   if (isPresentationMinimized) {
@@ -1618,40 +1907,28 @@ function addMinimizeButton() {
   if (!document.getElementById('minimizePresentationBtn')) {
     const btn = document.createElement('button');
     btn.id = 'minimizePresentationBtn';
-    btn.className = 'minimize-btn'; // Asegura que exista una clase con estilos definidos en CSS si es necesario
+    btn.className = 'minimize-btn'; 
     btn.textContent = isPresentationMinimized ? 'Maximizar' : 'Minimizar';
-
-    // Se asignan estilos en línea para posicionar el botón (opcional, de acuerdo al diseño deseado)
     btn.style.position = 'absolute';
     btn.style.top = '10px';
     btn.style.right = '10px';
     btn.style.zIndex = '10';
-
-    // Al hacer clic se evita la propagación del evento, se alterna el estado y se actualiza el texto
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       togglePresentationMinimized();
       btn.textContent = isPresentationMinimized ? 'Maximizar' : 'Minimizar';
     });
-
-    // Inserta el botón en el contenedor de contenido de la presentación
     const presentationContent = presentationModal.querySelector('.presentation-content');
     if (presentationContent) {
       presentationContent.appendChild(btn);
     } else {
-      // Si no se encuentra, se inserta directamente en el modal
       presentationModal.appendChild(btn);
     }
   }
 }
 
-/************************************************************************
- * CLOSE PRESENTATION
- ************************************************************************/
-function closePresentation(force = false) {
-  // Si la presentación está minimizada y no se fuerza, se evita el cierre
+async function closePresentation(force = false) { 
   if (isPresentationMinimized && !force) return;
-  
   presentationModal.style.display = 'none';
   presentationOpen = false;
   clearInterval(timerInterval);
@@ -1669,10 +1946,19 @@ function closePresentation(force = false) {
   presentationModal.removeEventListener('click', handlePresentationClick);
   presentationModal.removeEventListener('touchstart', handleTouchStart);
   presentationModal.removeEventListener('touchend', handleTouchEnd);
-  if (currentPresentationTask) {
-    currentPresentationTask.currentStepIndex = currentStepIndex;
+  
+  if (currentPresentationTask && currentPresentationTask.id) {
+    const user = await getCurrentUser();
+    if (user) {
+        const { error } = await supabase
+            .from('tasks')
+            .update({ current_step_index: currentStepIndex })
+            .eq('id', currentPresentationTask.id)
+            .eq('user_id', user.id);
+        if (error) console.error("Error guardando progreso de presentación en Supabase:", error);
+        else currentPresentationTask.currentStepIndex = currentStepIndex; 
+    }
   }
-  saveDataToLocalStorage();
   renderTasks();
   currentPresentationTask = null;
   releaseWakeLock();
@@ -1684,54 +1970,145 @@ function formatTime(sec) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-/************************************************************************
- * RECOMPENSA
- ************************************************************************/
-function addReward(text) {
-  const rewardsFolder = folders.find(f => f.id === rewardsFolderId);
-  if (rewardsFolder) {
-    const rewardTask = {
-      id: generateId(),
-      name: text,
-      steps: [],
-      isExpanded: false,
-      scheduledTimestamp: null,
-      isReward: true,
-      currentStepIndex: 0
-    };
-    rewardsFolder.tasks.unshift(rewardTask);
-    saveDataToLocalStorage();
-    renderFolders();
-    if (folderOfTaskBeingRewarded && taskBeingRewarded) {
-      moveTaskToMiniFolder(folderOfTaskBeingRewarded, taskBeingRewarded);
-    }
-    rewardSection.style.display = 'none';
-    tasksSection.style.display = 'block';
+async function addReward(text) { 
+  if (!_rewardsFolderObject || !_rewardsFolderObject.id) {
+    console.error("La carpeta de Recompensas no está inicializada o no tiene ID. No se puede añadir recompensa.");
+    alert("Error: La carpeta de recompensas no está disponible. Intenta recargar la página.");
+    return;
   }
+  const user = await getCurrentUser();
+  if (!user) {
+    console.error("Usuario no autenticado. No se puede añadir recompensa.");
+    return;
+  }
+
+  const rewardTaskData = {
+    folder_id: _rewardsFolderObject.id, 
+    user_id: user.id,
+    name: text,
+    is_reward: true, 
+    is_finished: false, 
+    steps: [],
+    is_expanded: false,
+    scheduled_timestamp: null,
+    current_step_index: 0,
+    total_time: null
+  };
+
+  const { data: insertedRewardTask, error } = await supabase
+    .from('tasks')
+    .insert(rewardTaskData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error guardando tarea de recompensa en Supabase:', error);
+    alert('Error al añadir la recompensa.');
+  } else if (insertedRewardTask) {
+    console.log('Tarea de recompensa guardada en Supabase:', insertedRewardTask);
+    const localRewardTask = {
+      id: insertedRewardTask.id,
+      name: insertedRewardTask.name,
+      steps: [],
+      isExpanded: insertedRewardTask.is_expanded,
+      scheduledTimestamp: insertedRewardTask.scheduled_timestamp ? new Date(insertedRewardTask.scheduled_timestamp).getTime() : null,
+      isReward: insertedRewardTask.is_reward,
+      currentStepIndex: insertedRewardTask.current_step_index,
+      totalTime: insertedRewardTask.total_time
+    };
+    
+    if (!_rewardsFolderObject.tasks) _rewardsFolderObject.tasks = [];
+    _rewardsFolderObject.tasks.unshift(localRewardTask); 
+    
+    if (folderOfTaskBeingRewarded && taskBeingRewarded) {
+      const success = await markTaskAsFinishedInSupabase(taskBeingRewarded);
+      if (success) {
+          const originalFolder = folders.find(f => f.id === folderOfTaskBeingRewarded.id);
+          if (originalFolder) {
+              originalFolder.tasks = originalFolder.tasks.filter(t => t.id !== taskBeingRewarded.id);
+              if (!originalFolder.finished) originalFolder.finished = [];
+              originalFolder.finished.push(taskBeingRewarded); 
+          }
+      }
+    }
+    
+    rewardInput.value = '';
+    showSection(tasksSection); 
+    if (folderOfTaskBeingRewarded) {
+        openFolder(folderOfTaskBeingRewarded.id, false); 
+    } else if (_rewardsFolderObject && currentFolderId === _rewardsFolderObject.id) {
+        openFolder(_rewardsFolderObject.id, false); 
+    } else {
+        showFolders(); 
+    }
+    renderFolders(); 
+  }
+  folderOfTaskBeingRewarded = null; 
+  taskBeingRewarded = null;
 }
 
-/************************************************************************
- * SCHEDULE
- ************************************************************************/
+async function moveTaskToMiniFolder(folder, task) { 
+  const success = await markTaskAsFinishedInSupabase(task);
+  if (!success) return;
+
+  const localFolder = folders.find(f => f.id === folder.id);
+  if (localFolder) {
+    localFolder.tasks = localFolder.tasks.filter(t => t.id !== task.id);
+    if (!localFolder.finished) localFolder.finished = [];
+    localFolder.finished.push(task); 
+  }
+
+  renderTasks();
+}
+
+async function restoreFromMiniFolder(folder, taskId) { 
+  const idx = folder.finished.findIndex(t => t.id === taskId);
+  if (idx === -1) return;
+  const taskToRestore = folder.finished[idx];
+
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({ is_finished: false, scheduled_timestamp: null, current_step_index: 0 }) 
+    .eq('id', taskToRestore.id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error("Error restaurando tarea (actualizando is_finished a false) en Supabase:", error);
+    alert("Error al restaurar la tarea.");
+    return;
+  }
+
+  taskToRestore.is_finished = false;
+  taskToRestore.scheduledTimestamp = null; 
+  taskToRestore.currentStepIndex = 0; 
+
+  folder.finished.splice(idx, 1);
+  if (!folder.tasks) folder.tasks = [];
+  folder.tasks.push(taskToRestore);
+  
+  renderTasks();
+}
+
 function openScheduleModal(task) {
   taskBeingScheduled = task;
   scheduleDateInput.value = task.scheduledTimestamp ? toLocalDateTime(task.scheduledTimestamp) : '';
   scheduleModal.style.display = 'flex';
 }
-
 function closeScheduleModal() {
   scheduleModal.style.display = 'none';
   taskBeingScheduled = null;
 }
-
 function toLocalDateTime(ts) {
+  if (!ts) return '';
   const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const offset = d.getTimezoneOffset() * 60000;
+  const localDate = new Date(d.getTime() - offset);
+  return localDate.toISOString().slice(0, 16);
 }
 
-/************************************************************************
- * ALARMA
- ************************************************************************/
 function checkAlarms() {
   if (alarmModal.style.display === 'flex') return;
   const now = Date.now();
@@ -1750,20 +2127,14 @@ function showAlarm(task) {
   alarmTitle.textContent = `¡Es hora de: "${task.name}"!`;
   alarmModal.style.display = 'flex';
   if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-  saveDataToLocalStorage();
 }
 
-/************************************************************************
- * DRAG & DROP
- ************************************************************************/
 function handleFolderDragStart(e) {
   draggedFolderId = e.currentTarget.dataset.id;
 }
-
 function handleFolderDragOver(e) {
   e.preventDefault();
 }
-
 function handleFolderDrop(e) {
   e.preventDefault();
   const targetFolderId = e.currentTarget.dataset.id;
@@ -1774,19 +2145,16 @@ function handleFolderDrop(e) {
     const draggedFolder = folders[draggedIndex];
     folders.splice(draggedIndex, 1);
     folders.splice(targetIndex, 0, draggedFolder);
-    saveDataToLocalStorage();
+    // TODO: Actualizar orden de carpetas en Supabase si se implementa
     renderFolders();
   }
 }
-
 function handleTaskDragStart(e) {
   draggedTaskId = e.currentTarget.dataset.taskId;
 }
-
 function handleTaskDragOver(e) {
   e.preventDefault();
 }
-
 function handleTaskDrop(e) {
   e.preventDefault();
   const targetTaskId = e.currentTarget.dataset.taskId;
@@ -1799,7 +2167,7 @@ function handleTaskDrop(e) {
     const draggedTask = folder.tasks[draggedIndex];
     folder.tasks.splice(draggedIndex, 1);
     folder.tasks.splice(targetIndex, 0, draggedTask);
-    saveDataToLocalStorage();
+    // TODO: Actualizar orden de tareas en Supabase si se implementa
     renderTasks();
     return;
   }
@@ -1809,39 +2177,53 @@ function handleTaskDrop(e) {
     const draggedTask = folder.finished[draggedFinishedIndex];
     folder.finished.splice(draggedFinishedIndex, 1);
     folder.finished.splice(targetFinishedIndex, 0, draggedTask);
-    saveDataToLocalStorage();
+    // TODO: Actualizar orden de tareas finalizadas en Supabase si se implementa
     renderTasks();
   }
 }
-
 function handleStepDragStart(e) {
   draggedStepIndex = parseInt(e.currentTarget.dataset.stepIndex, 10);
 }
-
 function handleStepDragOver(e) {
   e.preventDefault();
 }
-
-function handleStepDrop(e, task) {
+async function handleStepDrop(e, task) { 
   e.preventDefault();
   const targetStepIndex = parseInt(e.currentTarget.dataset.stepIndex, 10);
-  if (targetStepIndex === draggedStepIndex || isNaN(targetStepIndex)) return;
-  const draggedStep = task.steps[draggedStepIndex];
+  if (targetStepIndex === draggedStepIndex || isNaN(targetStepIndex) || draggedStepIndex === null) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const draggedStepDescription = task.steps[draggedStepIndex];
   task.steps.splice(draggedStepIndex, 1);
-  task.steps.splice(targetStepIndex, 0, draggedStep);
-  saveDataToLocalStorage();
+  task.steps.splice(targetStepIndex, 0, draggedStepDescription);
+  
+  const updates = task.steps.map((desc, index) => 
+    supabase
+      .from('steps')
+      .update({ step_order: index })
+      .eq('task_id', task.id)
+      .eq('user_id', user.id)
+      .eq('description', desc) 
+  );
+  
+  try {
+    await Promise.all(updates);
+    console.log("Órdenes de pasos actualizados en Supabase para la tarea:", task.id);
+  } catch (error) {
+    console.error("Error actualizando órdenes de pasos en Supabase:", error);
+    alert("Error al reordenar los pasos.");
+  }
+  draggedStepIndex = null; 
   renderTasks();
 }
 
-/************************************************************************
- * MOVER TAREA
- ************************************************************************/
 confirmMoveBtn.addEventListener('click', () => {
   const targetFolderId = targetFolderSelect.value;
   if (!targetFolderId) return console.log('Selecciona una carpeta de destino.');
   doMoveTask(targetFolderId);
 });
-
 cancelMoveBtn.addEventListener('click', () => closeMoveModal());
 
 function inlineMoveTask(task, isFinished) {
@@ -1850,7 +2232,7 @@ function inlineMoveTask(task, isFinished) {
   isTaskCompletedBeingMoved = isFinished;
   targetFolderSelect.innerHTML = '';
   folders.forEach(folder => {
-    if (folder.id === folderOfTaskBeingMoved.id || folder.isDefaultRewards) return;
+    if (!folderOfTaskBeingMoved || folder.id === folderOfTaskBeingMoved.id || folder.is_default_rewards) return;
     const option = document.createElement('option');
     option.value = folder.id;
     option.textContent = folder.name;
@@ -1859,18 +2241,48 @@ function inlineMoveTask(task, isFinished) {
   moveModal.style.display = 'flex';
 }
 
-function doMoveTask(targetFolderId) {
+async function doMoveTask(targetFolderId) { 
   if (!folderOfTaskBeingMoved || !taskBeingMoved) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({ folder_id: targetFolderId })
+    .eq('id', taskBeingMoved.id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error("Error moviendo tarea en Supabase:", error);
+    alert("Error al mover la tarea.");
+    return;
+  }
+
   const arr = isTaskCompletedBeingMoved
     ? folderOfTaskBeingMoved.finished
     : folderOfTaskBeingMoved.tasks;
   const idx = arr.findIndex(t => t.id === taskBeingMoved.id);
   if (idx > -1) arr.splice(idx, 1);
+  
   const targetFolder = folders.find(f => f.id === targetFolderId);
-  if (targetFolder) targetFolder.tasks.push(taskBeingMoved);
-  saveDataToLocalStorage();
-  renderTasks();
-  renderFolders();
+  if (targetFolder) {
+    if (isTaskCompletedBeingMoved) {
+        if(!targetFolder.finished) targetFolder.finished = [];
+        targetFolder.finished.push(taskBeingMoved);
+    } else {
+        if(!targetFolder.tasks) targetFolder.tasks = [];
+        targetFolder.tasks.push(taskBeingMoved);
+    }
+  }
+  
+  renderTasks(); 
+  if (folderOfTaskBeingMoved.id !== targetFolderId) { 
+      const originalFolderElement = document.querySelector(`.folder[data-id="${folderOfTaskBeingMoved.id}"] .folder-name`);
+      if (originalFolderElement) { 
+          renderFolders(); 
+      }
+  }
   closeMoveModal();
 }
 
@@ -1881,79 +2293,117 @@ function closeMoveModal() {
   isTaskCompletedBeingMoved = false;
 }
 
-/************************************************************************
- * LOCALSTORAGE
- ************************************************************************/
 async function saveDataToLocalStorage() {
-  const user = await getCurrentUser();
-  if (user) {
-    // Si hay un usuario logueado, guardar los datos asociados a su ID
-    const userDataKey = `userData_${user.id}`;
-    localStorage.setItem(userDataKey, JSON.stringify({ folders, trash }));
-  } else {
-    // Si no hay usuario, guardar en la clave general (para compatibilidad)
-    localStorage.setItem('foldersDataV4', JSON.stringify({ folders, trash }));
-  }
+  // console.log("saveDataToLocalStorage llamada - debería estar obsoleta para usuarios logueados.");
 }
 
 function loadDataFromLocalStorage() {
-  const dataString = localStorage.getItem('foldersDataV4');
-  if (dataString) {
-    const dataObj = JSON.parse(dataString);
-    folders = dataObj.folders || [];
-    trash = dataObj.trash || [];
-  } else {
-    folders = [];
-    trash = [];
-  }
+  console.log("loadDataFromLocalStorage ya no debería ser la fuente principal para usuarios logueados.");
 }
-
-// Función para cargar datos específicos del usuario
 function loadUserData(userId) {
-  const userDataKey = `userData_${userId}`;
-  const dataString = localStorage.getItem(userDataKey);
-  if (dataString) {
-    const dataObj = JSON.parse(dataString);
-    folders = dataObj.folders || [];
-    trash = dataObj.trash || [];
-  } else {
-    // Si no hay datos para este usuario, inicializar con datos vacíos
-    folders = [];
-    trash = [];
-  }
-  ensureRewardsFolder();
-  renderFolders();
+  console.warn("loadUserData (localStorage) llamada, debería usarse loadInitialDataFromSupabase");
 }
 
-// Función para limpiar datos cuando no hay usuario
+async function loadInitialDataFromSupabase(userId) {
+  if (!userId) {
+    clearUserData();
+    return;
+  }
+  console.log('Cargando datos desde Supabase para el usuario:', userId);
+  const { data: foldersData, error: foldersError } = await supabase
+    .from('folders')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (foldersError) {
+    console.error('Error cargando carpetas desde Supabase:', foldersError);
+    folders = [];
+  } else {
+    folders = foldersData.map(f => ({ ...f, tasks: [], finished: [] })) || []; 
+    console.log('Carpetas cargadas:', folders);
+  }
+
+  await ensureRewardsFolder(); 
+
+  for (let folder of folders) {
+    const { data: tasksData, error: tasksError } = await supabase
+      .from('tasks')
+      .select('*, steps (*)') 
+      .eq('user_id', userId)
+      .eq('folder_id', folder.id)
+      .order('created_at', { ascending: true }) 
+      .order('step_order', { foreignTable: 'steps', ascending: true }); 
+
+    if (tasksError) {
+      console.error(`Error cargando tareas para la carpeta ${folder.name}:`, tasksError);
+    } else {
+      folder.tasks = tasksData.filter(t => !t.is_finished).map(t => ({
+        id: t.id,
+        name: t.name,
+        steps: t.steps ? t.steps.map(s => s.description) : [],
+        isExpanded: t.is_expanded,
+        scheduledTimestamp: t.scheduled_timestamp ? new Date(t.scheduled_timestamp).getTime() : null,
+        currentStepIndex: t.current_step_index,
+        totalTime: t.total_time,
+        isReward: t.is_reward,
+      })) || [];
+      folder.finished = tasksData.filter(t => t.is_finished).map(t => ({
+        id: t.id,
+        name: t.name,
+        steps: t.steps ? t.steps.map(s => s.description) : [],
+        isReward: t.is_reward,
+      })) || [];
+    }
+  }
+  const { data: trashData, error: trashError } = await supabase
+    .from('trash_items')
+    .select('*')
+    .eq('user_id', userId)
+    .order('deleted_at', { ascending: false });
+  if (trashError) {
+    console.error('Error cargando papelera desde Supabase:', trashError);
+    trash = [];
+  } else {
+    trash = trashData.map(item => ({
+        id: item.id, 
+        type: item.item_type,
+        data: item.item_data, 
+        deletedAt: new Date(item.deleted_at).getTime()
+    })) || [];
+    console.log('Papelera cargada:', trash);
+  }
+  renderFolders(); 
+  if (currentFolderId) {
+      const currentF = folders.find(f => f.id === currentFolderId);
+      if (currentF) openFolder(currentFolderId, false); 
+      else showFolders(); 
+  } else {
+    showFolders(); 
+  }
+  cleanOldTrashItems(); 
+}
+
 function clearUserData() {
   folders = [];
   trash = [];
-  ensureRewardsFolder();
+  _rewardsFolderObject = null; 
   renderFolders();
-  renderTasks();
+  if(tasksList) tasksList.innerHTML = ''; 
+  if(completedMiniFolderList) completedMiniFolderList.innerHTML = ''; 
 }
 
-/************************************************************************
- * CHAT CON MCP SERVER
- ************************************************************************/
 let chatHistory = [];
-
 async function toggleChatModal() {
   const user = await getCurrentUser();
   const chatModal = document.getElementById('chatModal');
-  
-  // Solo permitir alternar el chat si el usuario está autenticado
   if (!user) {
-    showSection(authSection); // Redirigir a la autenticación si no hay usuario
+    showSection(authSection); 
     return;
   }
-  
   if (chatModal.style.display === 'block') {
     chatModal.style.display = 'none';
   } else {
     chatModal.style.display = 'block';
-    // Asegurar que el chat se muestra en la parte superior
     chatModal.style.zIndex = '10000';
   }
 }
@@ -1963,51 +2413,40 @@ async function sendMessage() {
   const input = document.getElementById('chatInput');
   const message = input.value.trim();
   if (!message) return;
-
   const chatMessages = document.getElementById('chatMessages');
   const userMsg = document.createElement('div');
   userMsg.style.textAlign = 'right';
   userMsg.textContent = "👤 " + message;
   chatMessages.appendChild(userMsg);
   input.value = '';
-
   try {
     chatHistory.push({ role: 'user', content: message });
-
     const appState = {
-      folders: folders,
-      trash: trash,
-      currentFolderId: currentFolderId
+      folders: folders.map(f => ({id: f.id, name: f.name, tasks: f.tasks.map(t => ({id: t.id, name: t.name, steps: t.steps.length }) ), finished_count: f.finished.length }) ), 
+      trash_count: trash.length,
+      currentFolder: currentFolderId ? folders.find(f=>f.id === currentFolderId)?.name : null
     };
-
-    const response = await fetch('/api/chat', { // Usar ruta relativa para el despliegue
+    const response = await fetch('/api/chat', { 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ messages: chatHistory, appState: appState })
     });
-
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status}`);
     }
-
     const data = await response.json();
     const aiResponseContent = data.choices[0].message.content;
-
     chatHistory.push({ role: 'assistant', content: aiResponseContent });
-
     const aiMsg = document.createElement('div');
     aiMsg.style.textAlign = 'left';
     aiMsg.textContent = "🤖 " + aiResponseContent;
     chatMessages.appendChild(aiMsg);
-
     chatMessages.scrollTop = chatMessages.scrollHeight;
-
     const jsonRegex = /```json\n?([\s\S]*?)\n?```/g;
     let match;
     let hasAction = false;
-
     while ((match = jsonRegex.exec(aiResponseContent)) !== null) {
       try {
         const parsedAction = JSON.parse(match[1]);
@@ -2021,12 +2460,10 @@ async function sendMessage() {
         console.error('Error al parsear JSON de acción:', e);
       }
     }
-
     if (!hasAction && data.choices[0].message.action) {
       console.log(`Executing action from explicit message: ${data.choices[0].message.action} with params:`, data.choices[0].message.params);
       executeAIAction(data.choices[0].message.action, data.choices[0].message.params);
     }
-
   } catch (error) {
     console.error('Error:', error);
     const errorMsg = document.createElement('div');
@@ -2086,19 +2523,15 @@ function executeAIAction(action, params) {
         for (const folder of folders) {
           let pendingTasks = folder.tasks.filter(t => t.name === params.taskName);
           let finishedTasks = folder.finished.filter(t => t.name === params.taskName);
-
           pendingTasks.forEach(task => tasksToDelete.push({ folder, task, isFinished: false }));
           finishedTasks.forEach(task => tasksToDelete.push({ folder, task, isFinished: true }));
         }
-
         if (tasksToDelete.length > 0) {
           tasksToDelete.forEach(({ folder, task, isFinished }) => {
-           
             console.log(`Moving task ${task.name} to trash from folder ${folder.name}`);
             moveTaskToTrash(folder, task.id, isFinished);
           });
-          saveDataToLocalStorage();
-          renderTasks();
+          // renderTasks(); // moveTaskToTrash ya lo hace si es necesario
         } else {
           console.log(`Tarea "${params.taskName}" no encontrada.`);
         }
@@ -2109,7 +2542,7 @@ function executeAIAction(action, params) {
     case 'deleteFolder':
       if (params && typeof params === 'string') {
         console.log(`Attempting to delete folder: ${params}`);
-        const foldersToDelete = folders.filter(f => f.name === params && !f.isDefaultRewards);
+        const foldersToDelete = folders.filter(f => f.name === params && !f.is_default_rewards);
         if (foldersToDelete.length > 0) {
           foldersToDelete.forEach(folder => {
             console.log(`Moving folder ${folder.name} to trash`);
@@ -2127,12 +2560,12 @@ function executeAIAction(action, params) {
         console.log(`Attempting to restore from trash: ${params}`);
         const trashItemsToRestore = trash.filter(item => {
           if (item.type === 'folder') return item.data.name === params;
-          if (item.type === 'task') return item.data.task.name === params;
+          if (item.type === 'task' && item.data.task) return item.data.task.name === params;
           return false;
         });
         if (trashItemsToRestore.length > 0) {
           trashItemsToRestore.forEach(item => {
-            console.log(`Restoring item ${item.data.name} from trash`);
+            console.log(`Restoring item ${item.data.name || item.data.task.name} from trash`);
             restoreFromTrash(item.id);
           });
         } else {
@@ -2147,12 +2580,12 @@ function executeAIAction(action, params) {
         console.log(`Attempting to permanently delete from trash: ${params}`);
         const trashItemsToDelete = trash.filter(item => {
           if (item.type === 'folder') return item.data.name === params;
-          if (item.type === 'task') return item.data.task.name === params;
+          if (item.type === 'task' && item.data.task) return item.data.task.name === params;
           return false;
         });
         if (trashItemsToDelete.length > 0) {
           trashItemsToDelete.forEach(item => {
-            console.log(`Permanently deleting item ${item.data.name}`);
+            console.log(`Permanently deleting item ${item.data.name || item.data.task.name}`);
             permanentlyDelete(item.id);
           });
         } else {
@@ -2203,9 +2636,10 @@ function executeAIAction(action, params) {
         const taskToSchedule = findTaskByName(params.taskName);
         if (taskToSchedule) {
           const dateTimeString = `${params.date}T${params.time}`;
-          taskToSchedule.scheduledTimestamp = new Date(dateTimeString).getTime();
-          saveDataToLocalStorage();
-          renderTasks();
+          const newTimestamp = new Date(dateTimeString).getTime();
+          taskBeingScheduled = taskToSchedule; 
+          scheduleDateInput.value = toLocalDateTime(newTimestamp); 
+          saveScheduleBtn.click(); 
           console.log(`Tarea "${params.taskName}" programada para el ${params.date} a las ${params.time}.`);
         } else {
           console.log(`Tarea "${params.taskName}" no encontrada para programar.`);
@@ -2220,7 +2654,6 @@ function executeAIAction(action, params) {
         let taskToMove = null;
         let sourceFolder = null;
         let isFinishedTask = false;
-
         for (const folder of folders) {
           taskToMove = folder.tasks.find(t => t.name === params.taskName);
           if (taskToMove) {
@@ -2234,26 +2667,16 @@ function executeAIAction(action, params) {
             break;
           }
         }
-
         const targetFolder = folders.find(f => f.name === params.targetFolderName);
-
         if (taskToMove && sourceFolder && targetFolder) {
           if (sourceFolder.id === targetFolder.id) {
             console.log(`La tarea "${params.taskName}" ya está en la carpeta "${params.targetFolderName}".`);
             return;
           }
-
-          if (isFinishedTask) {
-            sourceFolder.finished = sourceFolder.finished.filter(t => t.id !== taskToMove.id);
-          } else {
-            sourceFolder.tasks = sourceFolder.tasks.filter(t => t.id !== taskToMove.id);
-          }
-
-          targetFolder.tasks.push(taskToMove);
-
-          saveDataToLocalStorage();
-          renderTasks();
-          renderFolders();
+          taskBeingMoved = taskToMove;
+          folderOfTaskBeingMoved = sourceFolder;
+          isTaskCompletedBeingMoved = isFinishedTask;
+          doMoveTask(targetFolder.id);
           console.log(`Tarea "${params.taskName}" movida a la carpeta "${params.targetFolderName}".`);
         } else {
           console.log('No se pudo mover la tarea. Asegúrate de que la tarea y la carpeta de destino existan.');
@@ -2278,11 +2701,11 @@ function findTaskByName(taskName) {
   return null;
 }
 
-function emptyTrash() {
-  trash = [];
-  saveDataToLocalStorage();
-  renderTrash();
-}
+// function emptyTrash() { // Reemplazada por versión async
+//   trash = [];
+//   saveDataToLocalStorage();
+//   renderTrash();
+// }
 
 function newConversation() {
   document.getElementById('chatMessages').innerHTML = '';
@@ -2291,26 +2714,25 @@ function newConversation() {
 
 function setupChatEvents() {
   console.log('setupChatEvents() ejecutado');
-  document.getElementById('aiButton').addEventListener('click', toggleChatModal);
-  document.getElementById('sendChatBtn').addEventListener('click', sendMessage);
-  document.getElementById('chatInput').addEventListener('keypress', function(e) {
+  const aiButton = document.getElementById('aiButton');
+  const sendChatBtn = document.getElementById('sendChatBtn');
+  const chatInput = document.getElementById('chatInput');
+  const toggleChatHeader = document.getElementById('toggleChatHeader');
+  const newChatBtn = document.getElementById('newChatBtn');
+
+  if(aiButton) aiButton.addEventListener('click', toggleChatModal);
+  if(sendChatBtn) sendChatBtn.addEventListener('click', sendMessage);
+  if(chatInput) chatInput.addEventListener('keypress', function(e) {
     if(e.key === 'Enter') sendMessage();
   });
-  document.getElementById('toggleChatHeader').addEventListener('click', toggleChatModal);
-  document.getElementById('newChatBtn').addEventListener('click', newConversation);
+  if(toggleChatHeader) toggleChatHeader.addEventListener('click', toggleChatModal);
+  if(newChatBtn) newChatBtn.addEventListener('click', newConversation);
 }
 
-/************************************************************************
- * UTILIDADES
- ************************************************************************/
 function generateId() {
   return '_' + Math.random().toString(36).substr(2, 9);
 }
 
-/*
- * Función para recalcular el tiempo asignado a cada paso
- * Se distribuye de forma equitativa: cada paso recibe (totalTime / número de pasos) segundos.
- */
 function recalcStepTimes(task) {
   if (task.totalTime && task.steps.length > 0) {
     const allocated = Math.floor(task.totalTime / task.steps.length);
@@ -2321,28 +2743,18 @@ function recalcStepTimes(task) {
   }
 }
 
-
-
-
-
-// AGREGAR HANDLER PARA VISIBILITYCHANGE
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
-    // Guardar el momento en que la app se oculta
     lastHiddenTime = Date.now();
   } else {
-    // Cuando se vuelve a ver la app, calcular el tiempo transcurrido en segundos
     const elapsedSec = Math.floor((Date.now() - lastHiddenTime) / 1000);
-    // Corregido: ahora se permite que currentStepCountdown pueda ser negativo
     if (presentationOpen && currentPresentationTask && currentPresentationTask.totalTime) {
       currentStepCountdown = currentStepCountdown - elapsedSec;
       timerDisplay.textContent = formatTime(currentStepCountdown);
     }
-    // (Opcional) Mostrar Notificación con el paso actual y tiempo restante
     if (Notification.permission === "granted") {
       const notificationOptions = {
         body: `Paso: "${presentationSteps[currentStepIndex]}"\nTiempo restante: ${formatTime(currentStepCountdown)}`
-// icon: "icon.png" // Eliminado para evitar error 404
       };
       new Notification("Actualización de Temporizador", notificationOptions);
     } else if (Notification.permission !== "denied") {
@@ -2351,20 +2763,15 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-// Función para reiniciar la presentación de pasos al finalizar la tarea
 function resetPresentationSteps() {
     const stepsList = document.getElementById('presentationStepsList');
     if (stepsList) {
-        // Elimina la clase que resalta los pasos completados (por ejemplo, 'completed')
         stepsList.querySelectorAll('li.completed').forEach(li => li.classList.remove('completed'));
-        // Opcional: limpiar completamente la lista
-        // stepsList.innerHTML = '';
     }
-    // Reinicia la visualización del paso actual y el timer
-    const presentationStep = document.getElementById('presentationStep');
-    if (presentationStep) presentationStep.innerHTML = '';
-    const timerDisplay = document.getElementById('timerDisplay');
-    if (timerDisplay) timerDisplay.textContent = '00:00';
+    const presentationStepEl = document.getElementById('presentationStep');
+    if (presentationStepEl) presentationStepEl.innerHTML = '';
+    const timerDisplayEl = document.getElementById('timerDisplay');
+    if (timerDisplayEl) timerDisplayEl.textContent = '00:00';
 }
 
 let presentationTimer = {
@@ -2375,41 +2782,35 @@ let presentationTimer = {
 };
 
 function handlePresentationNavigation(direction) {
-    const currentStep = getCurrentStep();
-    const previousStepTime = presentationTimer.previousStepTime;
-    const currentTime = Date.now();
-    const stepDuration = currentTime - presentationTimer.currentStepStartTime;
-
-    if (direction === 'next') {
-        presentationTimer.elapsedTime += stepDuration;
-    } else if (direction === 'prev') {
-        presentationTimer.elapsedTime -= stepDuration;
-    }
-
-    presentationTimer.currentStepStartTime = currentTime;
-    updateTimerDisplay(presentationTimer.elapsedTime);
-
-    // Actualizar el paso actual según la dirección
-    if (direction === 'next' && currentStep < presentationSteps.length - 1) {
-        setCurrentStep(currentStep + 1);
-    } else if (direction === 'prev' && currentStep > 0) {
-        setCurrentStep(currentStep - 1);
-    }
+    // const currentStep = getCurrentStep(); // Esta función getCurrentStep() no está definida
+    // const previousStepTime = presentationTimer.previousStepTime;
+    // const currentTime = Date.now();
+    // const stepDuration = currentTime - presentationTimer.currentStepStartTime;
+    // if (direction === 'next') {
+    //     presentationTimer.elapsedTime += stepDuration;
+    // } else if (direction === 'prev') {
+    //     presentationTimer.elapsedTime -= stepDuration;
+    // }
+    // presentationTimer.currentStepStartTime = currentTime;
+    // updateTimerDisplay(presentationTimer.elapsedTime);
+    // if (direction === 'next' && currentStep < presentationSteps.length - 1) {
+    //     // setCurrentStep(currentStep + 1); // Esta función setCurrentStep() no está definida
+    // } else if (direction === 'prev' && currentStep > 0) {
+    //     // setCurrentStep(currentStep - 1); // Esta función setCurrentStep() no está definida
+    // }
+    console.warn("handlePresentationNavigation y funciones relacionadas (getCurrentStep, setCurrentStep) necesitan revisión o no están definidas.");
 }
 
 function updateTimerDisplay(elapsedTime) {
     const minutes = Math.floor(Math.abs(elapsedTime) / 60000);
     const seconds = Math.floor((Math.abs(elapsedTime) % 60000) / 1000);
     const sign = elapsedTime < 0 ? '-' : '';
-    
-    const timerDisplay = document.getElementById('timerDisplay');
-    timerDisplay.textContent = `${sign}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    const timerDisplayEl = document.getElementById('timerDisplay');
+    if(timerDisplayEl) timerDisplayEl.textContent = `${sign}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-// Eventos de navegación
 document.addEventListener('keydown', (e) => {
     if (!isPresentationMode) return;
-
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         handlePresentationNavigation('next');
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
@@ -2417,13 +2818,11 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Función para solicitar el wake lock.
 async function requestWakeLock() {
   try {
     if ('wakeLock' in navigator) {
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', () => {
-
         console.log('Wake Lock liberado');
       });
       console.log('Wake Lock activado');
@@ -2433,7 +2832,6 @@ async function requestWakeLock() {
   }
 }
 
-// Función para liberar el wake lock.
 function releaseWakeLock() {
   if (wakeLock) {
     wakeLock.release();
@@ -2442,9 +2840,8 @@ function releaseWakeLock() {
   }
 }
 
-// Reiniciar el wake lock si la visibilidad de la página cambia.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && wakeLock === null) {
+  if (document.visibilityState === 'visible' && wakeLock === null && presentationOpen) { 
     requestWakeLock();
   }
 });
