@@ -139,24 +139,44 @@ async function handleAuthStateChange(event, session) {
     }
 }
 
-// Configurar el listener de cambios en el estado de autenticación
-supabase.auth.onAuthStateChange(handleAuthStateChange);
-
-// Verificar el estado de autenticación inicial al cargar la página
-export async function checkInitialAuthState() {
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-            console.error('Error al verificar la sesión inicial:', error);
-            return;
+// (Esta función será llamada desde script.js)
+export function initializeAuthListener(onSignedIn, onSignedOut) {
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed in auth.js:', event, session);
+        await handleAuthStateChange(event, session); // Llamada existente
+        if (event === 'SIGNED_IN' && session?.user) {
+            if (onSignedIn) onSignedIn(session.user);
+        } else if (event === 'SIGNED_OUT') {
+            if (onSignedOut) onSignedOut();
         }
-        
-        // Manejar el estado inicial de autenticación
-        await handleAuthStateChange(session ? 'SIGNED_IN' : 'SIGNED_OUT', session);
-    } catch (error) {
-        console.error('Error al verificar el estado de autenticación inicial:', error);
-    }
+    });
+
+    // Verificación inicial de la sesión
+    (async () => {
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) {
+                console.error('Error al verificar la sesión inicial en auth.js:', error);
+                if (onSignedOut) onSignedOut(); // Asumir signed out si hay error
+                return;
+            }
+            
+            await handleAuthStateChange(session ? 'SIGNED_IN' : 'SIGNED_OUT', session); // Llamada existente
+            if (session?.user) {
+                if (onSignedIn) onSignedIn(session.user);
+            } else {
+                if (onSignedOut) onSignedOut();
+            }
+        } catch (error) {
+            console.error('Error catastrófico al verificar el estado de autenticación inicial en auth.js:', error);
+            if (onSignedOut) onSignedOut(); // Asumir signed out
+        }
+    })();
 }
 
-// Llamar a la verificación inicial cuando se cargue el módulo
-checkInitialAuthState();
+// La función handleAuthStateChange se mantiene igual, pero ya no necesita ser exportada
+// ni llamada directamente desde script.js para la lógica principal de UI,
+// ya que eso se manejará a través de los callbacks onSignedIn/onSignedOut.
+// Sin embargo, la dejaremos como está por ahora ya que maneja la UI básica.
+// La llamada a checkInitialAuthState() se elimina de aquí, se manejará desde script.js
+// a través de initializeAuthListener.
