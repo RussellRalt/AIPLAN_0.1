@@ -1,10 +1,10 @@
 // @ts-nocheck
-import { signUp, signIn, signOut, getCurrentUser, initializeAuthListener } from './auth.js';
-// supabase no se importa aquí directamente ya que la carga de datos usará localStorage por ahora
+import { signUp, signIn, signOut, getCurrentUser } from './auth.js';
 
 /************************************************************************
  * VARIABLES GLOBALES
  ************************************************************************/
+// Estructura de cada carpeta: { id, name, tasks:[], finished:[], isDefaultRewards?:bool }
 let folders = [];
 let trash = [];
 const rewardsFolderId = 'rewards-folder';
@@ -19,12 +19,12 @@ let draggedStepIndex = null;
 let presentationSteps = [];
 let currentStepIndex = 0;
 let timerSeconds = 0;
-let currentStepCountdown = 0; 
+let currentStepCountdown = 0; // Temporizador específico para el paso actual
 let timerInterval = null;
 let presentationOpen = false;
 let currentPresentationTask = null;
-let isPresentationMinimized = false; 
-let isPresentationMode = false; 
+let isPresentationMinimized = false; // Estado para saber si está minimizada
+let isPresentationMode = false; // Variable para controlar el modo de presentación
 
 let taskBeingScheduled = null;
 let currentAlarmTask = null;
@@ -33,12 +33,15 @@ let folderOfTaskBeingRewarded = null;
 let taskBeingMoved = null;
 let folderOfTaskBeingMoved = null;
 let isTaskCompletedBeingMoved = false;
-let taskToShare = null;
 
+// NUEVAS VARIABLES PARA DEBOUNCE DE INTERACCIONES EN LA PRESENTACIÓN
 let lastPresentationInteraction = 0;
-const PRESENTATION_DEBOUNCE_MS = 300; 
+const PRESENTATION_DEBOUNCE_MS = 300; // tiempo en milisegundos
 
+// NUEVA VARIABLE GLOBAL PARA MARCAR EL OCULTAMIENTO
 let lastHiddenTime = 0;
+
+// Variable para almacenar el wake lock.
 let wakeLock = null;
 
 /************************************************************************
@@ -52,16 +55,17 @@ const trashButton = document.getElementById('trashButton');
 const newFolderInput = document.getElementById('newFolderInput');
 const tasksSection = document.getElementById('tasksSection');
 const headerDynamicTitle = document.getElementById('headerDynamicTitle');
-const headerAuthIcon = document.getElementById('headerAuthIcon'); 
-const authSection = document.getElementById('authSection'); 
-const signupForm = document.getElementById('signupForm'); 
-const signupEmail = document.getElementById('signupEmail'); 
-const signupPassword = document.getElementById('signupPassword'); 
-const signinForm = document.getElementById('signinForm'); 
-const signinEmail = document.getElementById('signinEmail'); 
-const signinPassword = document.getElementById('signinPassword'); 
-// const signOutButton = document.getElementById('signOutButton'); // Ya no es necesario si el menú de usuario lo maneja
+const headerAuthIcon = document.getElementById('headerAuthIcon'); // Nuevo
+const authSection = document.getElementById('authSection'); // Nuevo
+const signupForm = document.getElementById('signupForm'); // Nuevo
+const signupEmail = document.getElementById('signupEmail'); // Nuevo
+const signupPassword = document.getElementById('signupPassword'); // Nuevo
+const signinForm = document.getElementById('signinForm'); // Nuevo
+const signinEmail = document.getElementById('signinEmail'); // Nuevo
+const signinPassword = document.getElementById('signinPassword'); // Nuevo
+const signOutButton = document.getElementById('signOutButton'); // Nuevo
 const newTaskInput = document.getElementById('newTaskInput');
+// Nuevo input para asignar tiempo (en minutos) a la tarea
 const newTaskTimeInput = document.getElementById('newTaskTimeInput');
 const tasksList = document.getElementById('tasksList');
 const completedMiniFolder = document.getElementById('completedMiniFolder');
@@ -84,117 +88,85 @@ const moveModal = document.getElementById('moveModal');
 const targetFolderSelect = document.getElementById('targetFolderSelect');
 const confirmMoveBtn = document.getElementById('confirmMoveBtn');
 const cancelMoveBtn = document.getElementById('cancelMoveBtn');
+
+// Elementos del modal de confirmación
 const confirmModal = document.getElementById('confirmModal');
 const confirmMessageElem = document.getElementById('confirmMessage');
 const confirmYesBtn = document.getElementById('confirmYesBtn');
 const confirmNoBtn = document.getElementById('confirmNoBtn');
 
 /************************************************************************
- * MANEJO DE ESTADO DE AUTENTICACIÓN (NUEVO ENFOQUE)
- ************************************************************************/
-
-async function handleUserSignedIn(user) {
-    console.log('handleUserSignedIn en script.js, user:', user);
-    if (headerAuthIcon && user.email) {
-        headerAuthIcon.innerHTML = `<span style="font-size: 0.8rem; margin-right: 5px;">${user.email}</span> 🚪`;
-        headerAuthIcon.title = 'Cerrar sesión';
-    }
-    const aiButton = document.getElementById('aiButton');
-    const chatModal = document.getElementById('chatModal');
-    if (aiButton) aiButton.style.display = 'block';
-    if (chatModal) chatModal.style.display = 'none'; // Asegurar que el chat esté oculto al inicio
-
-    loadUserData(user.id); // Esta es la función de la versión revertida que usa localStorage
-    showFolders();
-    showSection(foldersSection); // Asegurar que se muestre la sección de carpetas
-}
-
-function handleUserSignedOut() {
-    console.log('handleUserSignedOut en script.js');
-    if (headerAuthIcon) {
-        headerAuthIcon.innerHTML = '👤';
-        headerAuthIcon.title = 'Iniciar sesión';
-    }
-    const aiButton = document.getElementById('aiButton');
-    const chatModal = document.getElementById('chatModal');
-    if (aiButton) aiButton.style.setProperty('display', 'none', 'important');
-    if (chatModal) chatModal.style.setProperty('display', 'none', 'important');
-    
-    clearUserData();
-    showSection(authSection);
-}
-
-
-/************************************************************************
  * EVENTOS DE CARGA
  ************************************************************************/
 window.addEventListener('load', () => {
-  // loadDataFromLocalStorage(); // Esta se llamará condicionalmente o será reemplazada por loadUserData
-  ensureRewardsFolder(); // Debe llamarse después de que folders se inicialice
+  loadDataFromLocalStorage();
+  ensureRewardsFolder();
   applyTheme(currentTheme);
-  // renderFolders(); // Se llamará después de cargar datos
-  // cleanOldTrashItems(); // Se llamará después de cargar datos
-  
+  renderFolders();
+  cleanOldTrashItems();
   window.addEventListener('popstate', handlePopState);
   setInterval(checkAlarms, 60 * 1000);
   setupChatEvents();
   setupShareEvents();
-  setupAuthEvents(); 
-  
-  // Nueva inicialización de autenticación y manejo del estado
-  initializeAuthListener(handleUserSignedIn, handleUserSignedOut);
+  setupAuthEvents(); // Nuevo: Configurar eventos de autenticación
+  checkAuthStatus(); // Nuevo: Verificar estado de autenticación al cargar
 
   const appTitleLink = document.getElementById('appTitleLink');
   if (appTitleLink) {
     appTitleLink.addEventListener('click', (e) => {
-      e.preventDefault(); 
-      showFolders(); 
+      e.preventDefault(); // Prevent default link behavior
+      showFolders(); // Navigate to the home page (folders view)
     });
   }
+
 });
 
 function setupAuthEvents() {
   let userMenuOpen = false;
+
+  // Modificado: unificamos la opción de inicio de sesión
   if (headerAuthIcon) {
     headerAuthIcon.addEventListener('click', async () => {
-      // No necesitamos llamar a getCurrentUser aquí directamente si el estado se maneja por el listener
-      // La lógica de mostrar menú/sección de auth se puede simplificar o mover a handleUserSignedIn/Out
-      const user = await getCurrentUser(); // Podríamos necesitarlo para el menú desplegable
+      const user = await getCurrentUser();
       if (user) {
+        // Si el usuario está logueado, alternamos el menú de usuario.
         userMenuOpen = !userMenuOpen;
         updateUserMenu(user, userMenuOpen);
       } else {
+        // Si el usuario NO está logueado, mostramos la sección de autenticación
         showSection(authSection);
       }
     });
   }
 
+  // Event listeners para los botones de elección
   const chooseSigninBtn = document.getElementById('chooseSigninBtn');
   const chooseSignupBtn = document.getElementById('chooseSignupBtn');
   const authChoiceDiv = document.getElementById('authChoiceDiv');
   const authContainer = document.querySelector('.auth-container');
 
-  if(chooseSigninBtn) chooseSigninBtn.addEventListener('click', () => {
-    if(authChoiceDiv) authChoiceDiv.style.display = 'none';
-    if(authContainer) authContainer.style.display = 'block';
-    if(signinForm) signinForm.style.display = 'block';
-    if(signupForm) signupForm.style.display = 'none';
+  chooseSigninBtn.addEventListener('click', () => {
+    authChoiceDiv.style.display = 'none';
+    authContainer.style.display = 'block';
+    signinForm.style.display = 'block';
+    signupForm.style.display = 'none';
   });
 
-  if(chooseSignupBtn) chooseSignupBtn.addEventListener('click', () => {
-    if(authChoiceDiv) authChoiceDiv.style.display = 'none';
-    if(authContainer) authContainer.style.display = 'block';
-    if(signupForm) signupForm.style.display = 'block';
-    if(signinForm) signinForm.style.display = 'none';
+  chooseSignupBtn.addEventListener('click', () => {
+    authChoiceDiv.style.display = 'none';
+    authContainer.style.display = 'block';
+    signupForm.style.display = 'block';
+    signinForm.style.display = 'none';
   });
 
-  if(signupForm) signupForm.addEventListener('submit', async (e) => {
+  signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signupEmail.value;
     const password = signupPassword.value;
     try {
       await signUp(email, password);
       alert('Registro exitoso. Por favor, verifica tu correo electrónico.');
+      // Mostrar el formulario de inicio de sesión después del registro
       signupForm.style.display = 'none';
       signinForm.style.display = 'block';
     } catch (error) {
@@ -202,13 +174,13 @@ function setupAuthEvents() {
     }
   });
 
-  if(signinForm) signinForm.addEventListener('submit', async (e) => {
+  signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = signinEmail.value;
     const password = signinPassword.value;
     try {
       await signIn(email, password);
-      // checkAuthStatus() ya no es necesaria aquí, el listener onAuthStateChange se encargará
+      checkAuthStatus(); // Esto actualizará la UI
     } catch (error) {
       alert('Error al iniciar sesión: ' + error.message);
     }
@@ -218,7 +190,7 @@ function setupAuthEvents() {
 async function signOutAndRefresh() {
   try {
     await signOut();
-    // El listener onAuthStateChange se encargará de llamar a handleUserSignedOut
+    checkAuthStatus();
   } catch (error) {
     alert('Error al cerrar sesión: ' + error.message);
   }
@@ -227,7 +199,9 @@ async function signOutAndRefresh() {
 function updateUserMenu(user, open) {
   const userMenu = document.getElementById('userMenu');
   if (!userMenu) return;
+
   userMenu.innerHTML = '';
+
   if (open) {
     const emailItem = document.createElement('div');
     emailItem.textContent = user.email;
@@ -235,91 +209,133 @@ function updateUserMenu(user, open) {
     emailItem.style.color = '#fff';
     emailItem.style.borderBottom = '1px solid #555';
     userMenu.appendChild(emailItem);
-    const signOutButtonEl = document.createElement('button');
-    signOutButtonEl.textContent = 'Cerrar sesión';
-    signOutButtonEl.style.width = '100%';
-    signOutButtonEl.style.padding = '0.5rem';
-    signOutButtonEl.style.marginTop = '0.5rem';
-    signOutButtonEl.style.background = 'transparent';
-    signOutButtonEl.style.border = 'none';
-    signOutButtonEl.style.color = '#fff';
-    signOutButtonEl.style.cursor = 'pointer';
-    signOutButtonEl.addEventListener('click', signOutAndRefresh);
-    userMenu.appendChild(signOutButtonEl);
+
+    const signOutButton = document.createElement('button');
+    signOutButton.textContent = 'Cerrar sesión';
+    signOutButton.style.width = '100%';
+    signOutButton.style.padding = '0.5rem';
+    signOutButton.style.marginTop = '0.5rem';
+    signOutButton.style.background = 'transparent';
+    signOutButton.style.border = 'none';
+    signOutButton.style.color = '#fff';
+    signOutButton.style.cursor = 'pointer';
+    signOutButton.addEventListener('click', signOutAndRefresh);
+    userMenu.appendChild(signOutButton);
+
     userMenu.style.display = 'block';
   } else {
     userMenu.style.display = 'none';
   }
 }
 
-// La función checkAuthStatus() ha sido eliminada.
-// Su lógica ahora es manejada por initializeAuthListener en auth.js
-// y las funciones callback handleUserSignedIn y handleUserSignedOut en este archivo.
+async function checkAuthStatus() {
+  const user = await getCurrentUser();
+  const aiButton = document.getElementById('aiButton');
+  const chatModal = document.getElementById('chatModal');
+  const authChoiceDiv = document.getElementById('authChoiceDiv');
+  const authContainer = document.querySelector('.auth-container');
+
+  if (user) {
+    // Usuario logueado
+    headerAuthIcon.innerHTML = `<span style="font-size: 0.8rem; margin-right: 5px;">${user.email}</span> 🚪`;
+    headerAuthIcon.title = 'Cerrar sesión';
+    if (authChoiceDiv) authChoiceDiv.style.display = 'none';
+    if (authContainer) authContainer.style.display = 'none';
+    // Mostrar el botón de AI y resetear el estado del chat
+    if (aiButton) aiButton.style.display = 'block';
+    if (chatModal) chatModal.style.display = 'none';
+    // Cargar datos del usuario específico
+    loadUserData(user.id);
+    showFolders(); // Mostrar las carpetas si el usuario está logueado
+  } else {
+    // Usuario no logueado - MOSTRAR SOLO LA PANTALLA DE AUTENTICACIÓN
+    headerAuthIcon.innerHTML = '👤'; // Icono de usuario
+    headerAuthIcon.title = 'Iniciar sesión';
+    if (authChoiceDiv) authChoiceDiv.style.display = 'block';
+    if (authContainer) authContainer.style.display = 'none';
+    // Ocultar el botón de AI y la ventana del chat
+    if (aiButton) aiButton.style.display = 'none';
+    if (chatModal) chatModal.style.display = 'none';
+    // Limpiar datos cuando no hay usuario
+    clearUserData();
+    // Mostrar SOLO la sección de autenticación
+    showSection(authSection);
+  }
+}
 
 function setupShareEvents() {
-  const closeShareBtn = document.getElementById('closeShareBtn');
-  if(closeShareBtn) closeShareBtn.addEventListener('click', () => {
+  // Botón de cerrar modal
+  document.getElementById('closeShareBtn').addEventListener('click', () => {
     document.getElementById('shareModal').style.display = 'none';
   });
-  const whatsappShareBtn = document.getElementById('whatsappShareBtn');
-  if(whatsappShareBtn) whatsappShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por WhatsApp
+  document.getElementById('whatsappShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getWhatsAppShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
-  const telegramShareBtn = document.getElementById('telegramShareBtn');
-  if(telegramShareBtn) telegramShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por Telegram
+  document.getElementById('telegramShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getTelegramShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
-  const emailShareBtn = document.getElementById('emailShareBtn');
-  if(emailShareBtn) emailShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por correo
+  document.getElementById('emailShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getEmailShareLink(taskToShare);
     window.location.href = url;
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
-  const facebookShareBtn = document.getElementById('facebookShareBtn');
-  if(facebookShareBtn) facebookShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por Facebook
+  document.getElementById('facebookShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getFacebookShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
-  const twitterShareBtn = document.getElementById('twitterShareBtn');
-  if(twitterShareBtn) twitterShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por Twitter
+  document.getElementById('twitterShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getTwitterShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
-  const linkedinShareBtn = document.getElementById('linkedinShareBtn');
-  if(linkedinShareBtn) linkedinShareBtn.addEventListener('click', () => {
+
+  // Botón de compartir por LinkedIn
+  document.getElementById('linkedinShareBtn').addEventListener('click', () => {
     if (!taskToShare) return;
     const url = getLinkedInShareLink(taskToShare);
     window.open(url, '_blank');
-    document.getElementById('shareModal').style.display = 'none'; 
+    document.getElementById('shareModal').style.display = 'none'; // Cerrar modal
   });
 }
 
+// Funciones para generar enlaces de compartir
 function getFacebookShareLink(task) {
   const text = encodeURIComponent(formatTaskForSharing(task));
   return `https://www.facebook.com/sharer/sharer.php?u=&quote=${text}`;
 }
+
 function getTwitterShareLink(task) {
   const text = encodeURIComponent(formatTaskForSharing(task));
   return `https://twitter.com/intent/tweet?text=${text}`;
 }
+
 function getLinkedInShareLink(task) {
   const title = encodeURIComponent(`Tarea: ${task.name}`);
-  const summary = encodeURIComponent(formatTaskForSharing(task)); 
+  const summary = encodeURIComponent(formatTaskForSharing(task)); // Usar el formato completo para el resumen
   return `https://www.linkedin.com/shareArticle?mini=true&title=${title}&summary=${summary}`;
 }
 
-if(newFolderInput) newFolderInput.addEventListener('keydown', (e) => {
+newFolderInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const name = newFolderInput.value.trim();
     if (name) {
@@ -329,19 +345,10 @@ if(newFolderInput) newFolderInput.addEventListener('keydown', (e) => {
   }
 });
 
-if(newTaskInput) newTaskInput.addEventListener('keydown', (e) => {
+// Listener para el input del nombre de la tarea
+newTaskInput.addEventListener('keydown', (e) => {
+  // Si estamos en la carpeta de recompensas, no permitimos crear "tareas"
   if (currentFolderId === rewardsFolderId) return;
-  if (e.key === 'Enter') {
-    const taskName = newTaskInput.value.trim();
-    if (taskName && currentFolderId) {
-      createTask(currentFolderId, taskName);
-      newTaskInput.value = '';
-      if(newTaskTimeInput) newTaskTimeInput.value = '';
-    }
-  }
-});
-
-if(newTaskTimeInput) newTaskTimeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const taskName = newTaskInput.value.trim();
     if (taskName && currentFolderId) {
@@ -352,15 +359,28 @@ if(newTaskTimeInput) newTaskTimeInput.addEventListener('keydown', (e) => {
   }
 });
 
-if(themeButton) themeButton.addEventListener('click', () => {
+// Listener adicional para el input del temporizador (tiempo)
+newTaskTimeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const taskName = newTaskInput.value.trim();
+    if (taskName && currentFolderId) {
+      createTask(currentFolderId, taskName);
+      newTaskInput.value = '';
+      newTaskTimeInput.value = '';
+    }
+  }
+});
+
+themeButton.addEventListener('click', () => {
   if (currentTheme === 'dark') applyTheme('light');
   else if (currentTheme === 'light') applyTheme('cyberpunk');
   else applyTheme('dark');
 });
 
-if(importFileInput) importFileInput.addEventListener('change', (e) => {
+importFileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
@@ -383,8 +403,8 @@ if(importFileInput) importFileInput.addEventListener('change', (e) => {
   importFileInput.value = '';
 });
 
-if(trashButton) trashButton.addEventListener('click', () => showTrash());
-if(rewardInput) rewardInput.addEventListener('keydown', (e) => {
+trashButton.addEventListener('click', () => showTrash());
+rewardInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const text = rewardInput.value.trim();
     if (text) {
@@ -393,13 +413,13 @@ if(rewardInput) rewardInput.addEventListener('keydown', (e) => {
         moveTaskToMiniFolder(folderOfTaskBeingRewarded, taskBeingRewarded);
       }
       rewardInput.value = '';
-      if(rewardSection) rewardSection.style.display = 'none';
-      if(tasksSection) tasksSection.style.display = 'block';
+      rewardSection.style.display = 'none';
+      tasksSection.style.display = 'block';
     }
   }
 });
 
-if(saveScheduleBtn) saveScheduleBtn.addEventListener('click', () => {
+saveScheduleBtn.addEventListener('click', () => {
   if (!taskBeingScheduled) return;
   const newDate = scheduleDateInput.value;
   taskBeingScheduled.scheduledTimestamp = newDate ? new Date(newDate).getTime() : null;
@@ -407,9 +427,9 @@ if(saveScheduleBtn) saveScheduleBtn.addEventListener('click', () => {
   saveDataToLocalStorage();
   renderTasks();
 });
-if(cancelScheduleBtn) cancelScheduleBtn.addEventListener('click', () => closeScheduleModal());
-if(disableAlarmBtn) disableAlarmBtn.addEventListener('click', () => {
-  if(alarmModal) alarmModal.style.display = 'none';
+cancelScheduleBtn.addEventListener('click', () => closeScheduleModal());
+disableAlarmBtn.addEventListener('click', () => {
+  alarmModal.style.display = 'none';
   if (currentAlarmTask) {
     currentAlarmTask.scheduledTimestamp = null;
     saveDataToLocalStorage();
@@ -418,19 +438,22 @@ if(disableAlarmBtn) disableAlarmBtn.addEventListener('click', () => {
   currentAlarmTask = null;
 });
 
+/************************************************************************
+ * CONFIRM MODAL PERSONALIZADO
+ ************************************************************************/
 function showConfirm(message, onConfirm, onCancel) {
-  if(confirmMessageElem) confirmMessageElem.textContent = message;
-  if(confirmModal) confirmModal.style.display = 'flex';
+  confirmMessageElem.textContent = message;
+  confirmModal.style.display = 'flex';
 
   const handleYes = () => {
-    if(confirmModal) confirmModal.style.display = 'none';
+    confirmModal.style.display = 'none';
     confirmYesBtn.removeEventListener('click', handleYes);
     confirmNoBtn.removeEventListener('click', handleNo);
     if (onConfirm) onConfirm();
   };
 
   const handleNo = () => {
-    if(confirmModal) confirmModal.style.display = 'none';
+    confirmModal.style.display = 'none';
     confirmYesBtn.removeEventListener('click', handleYes);
     confirmNoBtn.removeEventListener('click', handleNo);
     if (onCancel) onCancel();
@@ -440,16 +463,21 @@ function showConfirm(message, onConfirm, onCancel) {
   confirmNoBtn.addEventListener('click', handleNo);
 }
 
+/************************************************************************
+ * HISTORIAL / NAVEGACIÓN
+ ************************************************************************/
 window.removeEventListener('popstate', handlePopState);
 window.addEventListener('popstate', handlePopState);
 
 function handlePopState(event) {
   console.log('popstate event:', event.state);
+  // Si la presentación está activa en pantalla grande, cerrarla y detener navegación.
   if (presentationOpen && !isPresentationMinimized) {
     console.log('Cerrando presentación por popstate');
     closePresentation(true);
-    return; 
+    return; // No procesar más cambios
   }
+  // Procesa la navegación normal solo si hay un estado
   if (event.state) {
     if (event.state.rewards) {
       showFolders();
@@ -463,30 +491,31 @@ function handlePopState(event) {
   }
 }
 
+// Función auxiliar para mostrar una sección y ocultar las demás
 function showSection(sectionToShow) {
   const sections = [foldersSection, tasksSection, trashSection, rewardSection, authSection];
   sections.forEach(section => {
-    if(section) { // Verificar que el elemento exista
-        if (section === sectionToShow) {
-        section.style.display = (section === authSection) ? 'flex' : 'block';
-        } else {
-        section.style.display = 'none';
-        }
+    if (section === sectionToShow) {
+      if (section === authSection) {
+        section.style.display = 'flex';
+      } else {
+        section.style.display = 'block';
+      }
+    } else {
+      section.style.display = 'none';
     }
   });
 
+  // Asegurar que el chat y el botón AI estén ocultos si se está mostrando la sección de autenticación
   const chatModal = document.getElementById('chatModal');
   const aiButton = document.getElementById('aiButton');
   if (sectionToShow === authSection) {
-    if (chatModal) chatModal.style.setProperty('display', 'none', 'important');
-    if (aiButton) aiButton.style.setProperty('display', 'none', 'important');
-  } else {
-    // Si no es la sección de auth, y hay un usuario, el botón AI debería ser visible
-    // La visibilidad del chat modal se maneja en toggleChatModal
-    // if (aiButton && getCurrentUser()) aiButton.style.display = 'block'; // Esto podría causar un flash
+    if (chatModal) chatModal.style.display = 'none';
+    if (aiButton) aiButton.style.display = 'none';
   }
 
-  if (presentationModal && sectionToShow !== presentationModal && !isPresentationMinimized) {
+  // Ocultar el modal de presentación si no es la sección de presentación
+  if (sectionToShow !== presentationModal && !isPresentationMinimized) {
     presentationModal.style.display = 'none';
   }
 }
@@ -494,7 +523,7 @@ function showSection(sectionToShow) {
 function showFolders() {
   showSection(foldersSection);
   currentFolderId = null;
-  if(headerDynamicTitle) headerDynamicTitle.textContent = ''; 
+  headerDynamicTitle.textContent = ''; // Empty for main folders view
 }
 
 function openFolder(folderId, pushToHistory = true) {
@@ -506,11 +535,12 @@ function openFolder(folderId, pushToHistory = true) {
     return;
   }
 
-  if(headerDynamicTitle) headerDynamicTitle.textContent = folder.name; 
+  headerDynamicTitle.textContent = folder.name; // Update dynamic title
 
   showSection(tasksSection);
   renderTasks();
 
+  // Empuja el estado al historial: si es la carpeta de Recompensas, usa un estado especial
   if (pushToHistory) {
     if (folderId === rewardsFolderId) {
       history.pushState({ rewards: true }, '', '');
@@ -523,39 +553,49 @@ function openFolder(folderId, pushToHistory = true) {
 function showTrash(pushHistory = true) {
   showSection(trashSection);
   renderTrash();
-  if(headerDynamicTitle) headerDynamicTitle.textContent = 'Papelera';
+
+  // Update header for trash view
+  headerDynamicTitle.textContent = 'Papelera';
+
   if (pushHistory) {
     history.pushState({ trash: true }, '', '');
   }
 }
 
+// ... Continúa con el resto de funciones de la sección CARPETAS.
+
+/************************************************************************
+ * TEMA
+ ************************************************************************/
 function applyTheme(themeName) {
   document.body.classList.remove('light-theme', 'cyberpunk-theme');
   if (themeName === 'light') {
     document.body.classList.add('light-theme');
-    if(themeButton) themeButton.textContent = '☀️';
+    themeButton.textContent = '☀️';
   } else if (themeName === 'cyberpunk') {
     document.body.classList.add('cyberpunk-theme');
-    if(themeButton) themeButton.textContent = '🔥';
+    themeButton.textContent = '🔥';
   } else {
-    if(themeButton) themeButton.textContent = '🌙';
+    themeButton.textContent = '🌙';
   }
   currentTheme = themeName;
   localStorage.setItem('appTheme', themeName);
   
+  // Actualiza el estilo del chat según el tema
   const chatModal = document.getElementById('chatModal');
-  if(chatModal) {
-    chatModal.classList.remove('chat-dark', 'chat-light', 'chat-cyberpunk');
-    if (themeName === 'light') {
-        chatModal.classList.add('chat-light');
-    } else if (themeName === 'cyberpunk') {
-        chatModal.classList.add('chat-cyberpunk');
-    } else {
-        chatModal.classList.add('chat-dark');
-    }
+  chatModal.classList.remove('chat-dark', 'chat-light', 'chat-cyberpunk');
+  if (themeName === 'light') {
+    chatModal.classList.add('chat-light');
+  } else if (themeName === 'cyberpunk') {
+    chatModal.classList.add('chat-cyberpunk');
+  } else {
+    chatModal.classList.add('chat-dark');
   }
 }
 
+/************************************************************************
+ * CARPETAS
+ ************************************************************************/
 function ensureRewardsFolder() {
   let rf = folders.find(f => f.id === rewardsFolderId);
   if (!rf) {
@@ -584,7 +624,6 @@ function createFolder(name) {
 }
 
 function renderFolders() {
-  if(!folderContainer) return;
   folderContainer.innerHTML = '';
   folders.forEach(folder => {
     const folderDiv = document.createElement('div');
@@ -595,7 +634,7 @@ function renderFolders() {
     const miniFolder = document.createElement('div');
     miniFolder.className = 'mini-folder';
     miniFolder.innerHTML = '📁';
-    // miniFolder.onclick = () => showFinishedTasks(folder.id); // Esta función no existe
+    miniFolder.onclick = () => showFinishedTasks(folder.id);
 
     folderDiv.addEventListener('dragstart', handleFolderDragStart);
     folderDiv.addEventListener('dragover', handleFolderDragOver);
@@ -679,6 +718,23 @@ function toggleFolderDropdownMenu(folderId) {
   }
 }
 
+window.addEventListener('popstate', (event) => {
+  if (event.state) {
+    // Si se detecta el estado especial de Recompensas, se vuelve a la vista de carpetas
+    if (event.state.rewards) {
+      showFolders();
+    } else if (event.state.folderId) {
+      openFolder(event.state.folderId, false);
+    } else if (event.state.trash) {
+      showTrash(false);
+    }
+  } else {
+    // Por defecto, mostrar la vista de carpetas
+    showFolders();
+  }
+});
+
+
 function renameFolder(folder) {
   const folderElement = document.querySelector(`[data-id="${folder.id}"]`);
   const nameElement = folderElement.querySelector('.folder-name');
@@ -714,6 +770,9 @@ function renameFolder(folder) {
   editInput.focus();
 }
 
+/************************************************************************
+ * PAPELERA
+ ************************************************************************/
 function moveFolderToTrash(folderId) {
   const idx = folders.findIndex(f => f.id === folderId);
   if (idx === -1) return;
@@ -747,11 +806,9 @@ function moveTaskToTrash(folder, taskId, isFinished = false) {
     deletedAt: Date.now()
   });
   saveDataToLocalStorage();
-  // No es necesario renderTasks() aquí si la llamada proviene de un botón que ya lo hace
 }
 
 function renderTrash() {
-  if(!trashList) return;
   trashList.innerHTML = '';
   if (trash.length === 0) {
     trashList.innerHTML = '<p>La papelera está vacía.</p>';
@@ -797,7 +854,7 @@ function restoreFromTrash(trashItemId) {
 
   trash.splice(idx, 1);
   saveDataToLocalStorage();
-  if(trashSection) trashSection.style.display = 'block';
+  trashSection.style.display = 'block';
   renderTrash();
   renderFolders();
 }
@@ -815,6 +872,9 @@ function cleanOldTrashItems() {
   saveDataToLocalStorage();
 }
 
+/************************************************************************
+ * EXPORTAR CARPETA
+ ************************************************************************/
 function exportFolder(folder) {
   const dataToExport = { version: 1, folders: [folder] };
   const jsonString = JSON.stringify(dataToExport);
@@ -828,13 +888,18 @@ function exportFolder(folder) {
   document.body.removeChild(a);
 }
 
+/************************************************************************
+ * TAREAS (MODIFICACIONES PRINCIPALES)
+ ************************************************************************/
 function createTask(folderId, taskName) {
   const folder = folders.find(f => f.id === folderId);
   if (!folder) return;
+  // Si la carpeta es de recompensas, no permitimos crear tareas
   if (folder.id === rewardsFolderId) return;
+  // Leer el valor opcional del input de tiempo (en minutos) y convertirlo a segundos
   let totalTime = null;
-  if (newTaskTimeInput && newTaskTimeInput.value.trim() !== "") {
-    totalTime = parseInt(newTaskTimeInput.value, 10) * 60; 
+  if (newTaskTimeInput.value.trim() !== "") {
+    totalTime = parseInt(newTaskTimeInput.value, 10) * 60; // Convertir minutos a segundos
   }
   const newTask = {
     id: generateId(),
@@ -843,10 +908,11 @@ function createTask(folderId, taskName) {
     isExpanded: false,
     scheduledTimestamp: null,
     currentStepIndex: 0,
-    totalTime: totalTime, 
-    stepTimes: [] 
+    totalTime: totalTime, // Tiempo total en segundos (opcional)
+    stepTimes: [] // Se calculará a medida que se agreguen pasos
   };
   folder.tasks.push(newTask);
+  // Si la tarea tiene tiempo total, recalcular los tiempos de los pasos (incluso si no hay pasos aún)
   if (newTask.totalTime) {
     recalcStepTimes(newTask);
   }
@@ -859,30 +925,29 @@ function renderTasks() {
   const folder = folders.find(f => f.id === currentFolderId);
   if (!folder) {
     console.log('Carpeta no encontrada en renderTasks:', currentFolderId);
-    if(tasksList) tasksList.innerHTML = '';
-    if(completedMiniFolderList) completedMiniFolderList.innerHTML = '';
     return;
   }
 
-  if(tasksList) tasksList.innerHTML = '';
-  if(completedMiniFolderList) completedMiniFolderList.innerHTML = '';
+  tasksList.innerHTML = '';
+  completedMiniFolderList.innerHTML = '';
 
   folder.tasks.forEach(task => tasksList.appendChild(buildPendingTaskItem(folder, task)));
 
+  // Si la carpeta es de recompensas, ocultamos ambos inputs
   if (folder.id === rewardsFolderId) {
-    if(newTaskInput) newTaskInput.style.display = 'none';
-    if(newTaskTimeInput) newTaskTimeInput.style.display = 'none';
+    newTaskInput.style.display = 'none';
+    newTaskTimeInput.style.display = 'none';
   } else {
-    if(newTaskInput) newTaskInput.style.display = 'block';
-    if(newTaskTimeInput) newTaskTimeInput.style.display = 'block';
+    newTaskInput.style.display = 'block';
+    newTaskTimeInput.style.display = 'block';
   }
 
-  if(completedMiniFolder) completedMiniFolder.style.display = 'block';
+  completedMiniFolder.style.display = 'block';
+  completedMiniFolderList.innerHTML = '';
   folder.finished.forEach(task => completedMiniFolderList.appendChild(buildFinishedTaskItem(folder, task)));
 
-  const miniFolderIcon = document.querySelector('.mini-folder-icon');
-  if(miniFolderIcon) miniFolderIcon.onclick = () => {
-    if(completedMiniFolder) completedMiniFolder.classList.toggle('expanded');
+  document.querySelector('.mini-folder-icon').onclick = () => {
+    completedMiniFolder.classList.toggle('expanded');
   };
 }
 
@@ -2383,51 +2448,3 @@ document.addEventListener('visibilitychange', () => {
     requestWakeLock();
   }
 });
-
-</file_content>
-
-Now that you have the latest state of the file, try the operation again with fewer, more precise SEARCH blocks. For large files especially, it may be prudent to try to limit yourself to <5 SEARCH/REPLACE blocks at a time, then wait for the user to respond with the result of the operation before following up with another replace_in_file call to make additional edits.
-(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback.)
-</error><environment_details>
-# VSCode Visible Files
-../../../../../../../../../../response_f5ef1752-7107-4fff-b4cf-95f6a7a84b24/tools-0
-../../../../../../../../../../response_f5ef1752-7107-4fff-b4cf-95f6a7a84b24/tools-1
-../../../../../../../../../../response_f5ef1752-7107-4fff-b4cf-95f6a7a84b24/tools-2
-../../../../../../../../../../response_f5ef1752-7107-4fff-b4cf-95f6a7a84b24/tools-3
-../../../../../../../../../../response_f5ef1752-7107-4fff-b4cf-95f6a7a84b24/tools-4
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-0
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-1
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-2
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-3
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-0
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-1
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-2
-../../../../../../../../../../response_ce3f1723-37fe-416e-a272-1f37e119e5b7/tools-3
-script.js
-
-# VSCode Open Tabs
-mcp_server.js
-manifest.json
-../../assista html/auth.js
-.gitignore
-vercel.json
-server.js
-package.json
-.env.local
-README.md
-supabase.js
-index.html
-style.css
-auth.js
-script.js
-chat-styles.css
-
-# Current Time
-6/6/2025, 6:11:11 PM (America/Guatemala, UTC-6:00)
-
-# Context Window Usage
-349,021 / 1,048.576K tokens used (33%)
-
-# Current Mode
-ACT MODE
-</environment_details>
