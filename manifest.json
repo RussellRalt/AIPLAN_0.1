@@ -1,0 +1,141 @@
+{
+  "name": "Gestor de Tareas",
+  "short_name": "Tareas",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "background_color": "#ffffff",
+  "theme_color": "#317EFB",
+  "mcp_tools": [
+    {
+      "name": "get_app_state",
+      "description": "Obtiene el estado actual completo de la aplicación (carpetas, tareas, papelera).",
+      "type": "resource",
+      "uri": "/api/structure",
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "create_folder",
+      "description": "Crea una nueva carpeta.",
+      "type": "tool",
+      "uri": "/api/folders",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "El nombre de la carpeta a crear."
+          }
+        },
+        "required": ["name"]
+      },
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "create_task",
+      "description": "Crea una nueva tarea dentro de una carpeta específica.",
+      "type": "tool",
+      "uri": "/api/folders/{folderId}/tasks",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "description": "El ID de la carpeta donde se creará la tarea."
+          },
+          "name": {
+            "type": "string",
+            "description": "El nombre de la tarea a crear."
+          },
+          "time": {
+            "type": "number",
+            "description": "Tiempo total en minutos para la tarea (opcional)."
+          }
+        },
+        "required": ["folderId", "name"]
+      },
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "add_step",
+      "description": "Añade un paso a una tarea existente.",
+      "type": "tool",
+      "uri": "/api/tasks/{taskId}/steps",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "description": "El ID de la tarea a la que se añadirá el paso."
+          },
+          "description": {
+            "type": "string",
+            "description": "La descripción del paso."
+          }
+        },
+        "required": ["taskId", "description"]
+      },
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "delete_folder",
+      "description": "Elimina una carpeta por su nombre.",
+      "type": "tool",
+      "uri": "/api/folders/{name}",
+      "method": "DELETE",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "El nombre de la carpeta a eliminar."
+          }
+        },
+        "required": ["name"]
+      },
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "delete_task",
+      "description": "Elimina una tarea por su nombre.",
+      "type": "tool",
+      "uri": "/api/tasks/{name}",
+      "method": "DELETE",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "El nombre de la tarea a eliminar."
+          }
+        },
+        "required": ["name"]
+      },
+      "server_name": "task-manager-mcp"
+    },
+    {
+      "name": "delete_step",
+      "description": "Elimina un paso de una tarea por su descripción.",
+      "type": "tool",
+      "uri": "/api/tasks/{taskName}/steps/{stepDescription}",
+      "method": "DELETE",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "taskName": {
+            "type": "string",
+            "description": "El nombre de la tarea de la que se eliminará el paso."
+          },
+          "stepDescription": {
+            "type": "string",
+            "description": "La descripción del paso a eliminar."
+          }
+        },
+        "required": ["taskName", "stepDescription"]
+      },
+      "server_name": "task-manager-mcp"
+    }
+  ]
+}

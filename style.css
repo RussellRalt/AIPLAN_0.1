@@ -1,0 +1,1447 @@
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  padding-top: 60px; /* Adjust based on header height */
+}
+
+/* Variables de ejemplo para personalizar elementos (opcional) */
+:root {
+  --task-bg: #3a3a3a;
+  --text-color: #fff;
+}
+
+/* ELEMENTOS DE INPUT EDIT (por ejemplo, para renombrar tareas) */
+.task-edit-input {
+  padding: 0.3rem;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  background: var(--task-bg);
+  color: var(--text-color);
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* CONTENEDORES GENERALES */
+section {
+  width: 100%;
+  flex-shrink: 0;
+}
+/* Remove generic header styling as it's now handled by global-fixed-header */
+/* header {
+  background-color: #333;
+  text-align: center;
+  padding: 1rem;
+} */
+
+/* GLOBAL FIXED HEADER */
+.global-fixed-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #333; /* Default background */
+  color: #fff; /* Default text color */
+  z-index: 1000;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.global-fixed-header #appTitleLink {
+  text-decoration: none; /* Remove underline */
+  color: inherit; /* Inherit color from parent (theme) */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-app-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #ff0055 0%, #00ffe7 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 0, 90, 0.4),
+              inset 0 0 10px rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.header-app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 0, 90, 0.2), rgba(0, 255, 231, 0.2));
+  z-index: 1;
+}
+
+.header-icon-text {
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(to right, #ffffff, #e0e0e0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+  position: relative;
+}
+
+.header-app-title {
+  font-size: 24px;
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #00ffe7 0%, #ff0055 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 10px rgba(0, 255, 231, 0.4);
+}
+
+.global-fixed-header #headerDynamicTitle {
+  flex-grow: 1; /* Allows it to take available space */
+  text-align: center;
+  font-size: 1.2rem;
+  color: inherit; /* Inherit color from parent (theme) */
+  margin: 0 1rem;
+}
+
+.global-fixed-header #headerRightIcons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Estilos para el icono de autenticación con email y menú desplegable */
+#headerAuthIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+#headerAuthIcon:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+#headerAuthIcon span {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#userMenu {
+  display: none;
+  position: absolute;
+  top: 40px;
+  right: 0;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.3rem;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  min-width: 150px;
+}
+
+#userMenu button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+#userMenu button:hover {
+  background-color: #444;
+}
+
+/* Adjust theme styles for the new global header */
+body.light-theme .global-fixed-header {
+  background-color: #ddd;
+  color: #333;
+}
+body.cyberpunk-theme .global-fixed-header {
+  background-color: #1a1f2e;
+  color: #00ffe7;
+}
+
+/* SECCIÓN AUTENTICACIÓN */
+#authSection {
+  flex: 1;
+  padding: 1rem;
+  display: none; /* Hidden by default */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px); /* Adjust based on header height */
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 2rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2rem 3rem;
+  border-radius: 2rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-icon {
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, #ff0055 0%, #00ffe7 100%);
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(255, 0, 90, 0.4),
+              inset 0 0 20px rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 0, 90, 0.2), rgba(0, 255, 231, 0.2));
+  z-index: 1;
+}
+
+.app-icon:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(255, 0, 90, 0.6),
+              inset 0 0 30px rgba(255, 255, 255, 0.3);
+}
+
+.icon-text {
+  font-size: 48px;
+  font-weight: 800;
+  background: linear-gradient(to right, #ffffff, #e0e0e0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
+}
+
+.app-title {
+  font-size: 48px;
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #00ffe7 0%, #ff0055 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(0, 255, 231, 0.4);
+}
+
+#authChoiceDiv {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+#authChoiceDiv button,
+.auth-choice-btn {
+  padding: 1rem 2.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #007bff;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  min-width: 180px;
+}
+
+#authChoiceDiv button:hover,
+.auth-choice-btn:hover {
+  background: #0056b3;
+  border-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.5);
+}
+
+#authChoiceDiv button:active,
+.auth-choice-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* Cyberpunk theme overrides */
+body.cyberpunk-theme .app-icon {
+  background: linear-gradient(135deg, #ff0090 0%, #00ffe7 100%);
+  box-shadow: 0 8px 24px rgba(255, 0, 144, 0.3);
+}
+
+body.cyberpunk-theme .app-title {
+  background: linear-gradient(135deg, #00ffe7 0%, #ff0090 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(0, 255, 231, 0.5);
+}
+
+/* Light theme overrides */
+body.light-theme .app-icon {
+  background: linear-gradient(135deg, #007bff 0%, #00e7ff 100%);
+  box-shadow: 0 8px 16px rgba(0, 123, 255, 0.2);
+}
+
+body.light-theme .app-title {
+  color: #333;
+}
+
+/* ...existing code... */
+
+/* SECCIÓN AUTENTICACIÓN */
+#authSection {
+  flex: 1;
+  padding: 1rem;
+  display: none; /* Hidden by default */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px); /* Adjust based on header height */
+}
+
+.auth-container {
+  background: #2a2a2a;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 400px;
+  width: 90%;
+  margin: 20px auto;
+}
+
+.auth-container h2 {
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-form input {
+  padding: 0.8rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #333;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.auth-form button {
+  padding: 0.8rem;
+  border: none;
+  border-radius: 4px;
+  background: #4CAF50;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.auth-form button:hover {
+  background: #45a049;
+}
+
+#authChoiceDiv {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+#authChoiceDiv button {
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  background: #444;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#authChoiceDiv button:hover {
+  background: #555;
+}
+
+#signOutButton {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 4px;
+  background: #f44336;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#signOutButton:hover {
+  background: #d32f2f;
+}
+
+/* Light Theme for Auth Section */
+body.light-theme #authSection .auth-container {
+  background-color: #fff;
+  border-color: #ccc;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme #authSection .auth-container h2,
+body.light-theme #authSection .auth-container h3 {
+  color: #333;
+}
+
+body.light-theme .auth-form input[type="email"],
+body.light-theme .auth-form input[type="password"] {
+  background-color: #eee;
+  border-color: #bbb;
+  color: #333;
+}
+
+body.light-theme .auth-form button[type="submit"] {
+  background-color: #007bff;
+}
+
+body.light-theme .auth-form button[type="submit"]:hover {
+  background-color: #0056b3;
+}
+
+body.light-theme #signOutButton {
+  background-color: #dc3545;
+}
+
+body.light-theme #signOutButton:hover {
+  background-color: #c82333;
+}
+
+/* Cyberpunk Theme for Auth Section */
+body.cyberpunk-theme #authSection .auth-container {
+  background-color: #1b1f31;
+  border-color: #ff0090;
+  box-shadow: 0 0 15px #ff0090;
+}
+
+body.cyberpunk-theme #authSection .auth-container h2,
+body.cyberpunk-theme #authSection .auth-container h3 {
+  color: #00ffe7;
+}
+
+body.cyberpunk-theme .auth-form input[type="email"],
+body.cyberpunk-theme .auth-form input[type="password"] {
+  background-color: #232c42;
+  border-color: #00ffe7;
+  color: #00ffe7;
+  box-shadow: 0 0 5px #00ffe7;
+}
+
+body.cyberpunk-theme .auth-form button[type="submit"] {
+  background-color: #ff0090;
+  color: #00ffe7;
+  border: 1px solid #00ffe7;
+  box-shadow: 0 0 8px #ff0090;
+}
+
+body.cyberpunk-theme .auth-form button[type="submit"]:hover {
+  background-color: #e6007a;
+}
+
+body.cyberpunk-theme #signOutButton {
+  background-color: #00ffe7;
+  color: #ff0090;
+  border: 1px solid #ff0090;
+  box-shadow: 0 0 8px #00ffe7;
+}
+
+body.cyberpunk-theme #signOutButton:hover {
+  background-color: #00c2b3;
+}
+
+/* TOP ICON BAR */
+.top-icon-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+.icon-button {
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-button:hover {
+  background-color: #666;
+}
+
+/* NUEVA CARPETA */
+.new-folder {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.new-folder-input {
+  width: 80%;
+  padding: 0.3rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+}
+
+/* CONTENEDOR CARPETAS */
+.folder-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* CADA CARPETA */
+.folder {
+  width: 160px;
+  min-height: 90px;
+  background-color: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 1rem;
+  cursor: move;
+  position: relative;
+}
+.folder-icon {
+  width: 45px;
+  height: 32px;
+  margin: 0 auto;
+  background: url("data:image/svg+xml;charset=utf8,<svg fill='%23cccccc' xmlns='http://www.w3.org/2000/svg' width='40' height='32' viewBox='0 0 512 512'><path d='M64 128l0-16c0-26.4 21.6-48 48-48l83.2 0 27.2 27.2 12.8 12.8 176 0c26.4 0 48 21.6 48 48l0 16 0 224c0 26.4-21.6 48-48 48l-304 0c-26.4 0-48-21.6-48-48l0-224z'/></svg>") no-repeat center / contain;
+}
+.folder-name {
+  text-align: center;
+  margin-top: 0.5rem;
+  word-wrap: break-word;
+}
+
+/* BOTÓN DE TRES PUNTOS */
+.folder-options-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+.folder-options-btn:hover {
+  color: #fff;
+}
+.folder-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 32px;
+  right: 8px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.3rem;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  min-width: 120px;
+}
+.folder-dropdown-menu button {
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  width: 100%;
+  height: 2rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin: 0.2rem 0;
+  text-align: left;
+  padding: 0 0.5rem;
+}
+.folder-dropdown-menu button:hover {
+  background-color: #666;
+}
+
+/* SECCIÓN TAREAS */
+#tasksSection {
+  flex: 1;
+  padding: 1rem;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+#tasksTitle {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* NUEVA TAREA */
+.new-task {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+  gap: 0.5rem; /* Espacio entre el input de tarea y el input de tiempo */
+}
+#newTaskInput {
+  width: 70%;
+  padding: 0.3rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+}
+#newTaskTimeInput {
+  width: 25%;
+  padding: 0.3rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+}
+
+/* SUBHEADING DE TAREAS PENDIENTES */
+.subheading {
+  margin: 1rem 0 0.3rem 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* LISTA DE TAREAS */
+.tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* CADA TAREA */
+.task {
+  background-color: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.5rem;
+  cursor: move;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  position: relative;
+}
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.task-name-text {
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+.task-buttons {
+  display: flex;
+  gap: 0.3rem;
+}
+.task-buttons button {
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-buttons button:hover {
+  background-color: #666;
+}
+
+/* MENÚ DESPLEGABLE DE TAREA */
+.task {
+  position: relative;
+}
+.task-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: #444;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 0.3rem;
+  min-width: 100px;
+  z-index: 100;
+  display: none;
+}
+.task-menu button {
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.task-menu button:hover {
+  background-color: #666;
+}
+
+/* PASOS (dentro de cada tarea) */
+.task-steps {
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-left: 1rem;
+  margin-top: 0.3rem;
+}
+.new-step-input {
+  flex: 1;
+  padding: 0.3rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+}
+.step-item {
+  background-color: #2f2f2f;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 0.3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+}
+.step-text {
+  flex: 1;
+  margin-right: 0.5rem;
+}
+.step-buttons {
+  display: flex;
+  gap: 0.3rem;
+}
+.step-buttons button {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.7rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.step-buttons button:hover {
+  background-color: #666;
+}
+/* Clase para pasos completados en el área de tareas */
+.completed-step {
+  background-color: rgba(255, 215, 0, 0.3) !important;
+}
+
+/* MINI CARPETA FIJA */
+.mini-folder-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #3a3a3a;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.mini-folder-container:hover {
+  width: 250px;
+  height: auto;
+  min-height: 40px;
+}
+.mini-folder-icon {
+  cursor: pointer;
+  font-size: 24px;
+  text-align: center;
+}
+.mini-folder-container .tasks-list {
+  display: none;
+  margin-top: 10px;
+}
+.mini-folder-container:hover .tasks-list {
+  display: block;
+}
+.mini-folder-title {
+  color: #ffd700;
+  font-size: 1.1rem;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* PAPELERA */
+#trashSection {
+  flex: 1;
+  padding: 1rem;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+#trashList {
+  width: 100%;
+  max-width: 600px;
+  margin: 1rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.trash-item {
+  background-color: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.trash-buttons {
+  display: flex;
+  gap: 0.3rem;
+}
+.trash-buttons button {
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.trash-buttons button:hover {
+  background-color: #666;
+}
+
+/* MODAL DE PRESENTACIÓN */
+.presentation-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000da;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  color: #fff;
+  text-align: center;
+}
+.presentation-content {
+  width: 95%;
+  max-width: 800px;
+  padding: 1rem;
+}
+.presentation-step {
+  font-size: 2rem;
+  margin: 1rem 0;
+  padding: 1.5rem;
+  background-color: #222;
+  border-radius: 6px;
+}
+.timer {
+  margin-top: 1rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #ffdb4d;
+}
+
+/* MODAL MINIMIZADO DE PRESENTACIÓN */
+.presentation-modal.minimized {
+  top: auto;                /* Evita heredar top: 0 de la regla base */
+  position: fixed;
+  bottom: 10px;             /* Fija el modal a 10px del fondo */
+  left: 50%;                /* Coloca el borde izquierdo en el centro de la pantalla */
+  transform: translateX(-50%); /* Centra horizontalmente */
+  width: 300px;
+  height: 170px;
+  z-index: 10000;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* MODAL FECHA/HORA */
+.schedule-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0,0,0,0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+.schedule-content {
+  background-color: #333;
+  padding: 2rem;
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
+}
+.schedule-buttons {
+  margin-top: 1rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.schedule-buttons button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.schedule-buttons button:hover {
+  background-color: #666;
+}
+
+/* MODAL ALARMA */
+.alarm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0,0,0,0.9);
+  color: #fff;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+.alarm-content {
+  background-color: #333;
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+}
+#disableAlarmBtn {
+  font-size: 1.1rem;
+  padding: 0.5rem 1rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#disableAlarmBtn:hover {
+  background-color: #666;
+}
+
+/* SECCIÓN RECOMPENSA */
+#rewardSection {
+  flex: 1;
+  padding: 1rem;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+.reward-container {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+#rewardInput {
+  width: 100%;
+  padding: 0.5rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+/* MODAL MOVER TAREA */
+.move-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0,0,0,0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+.move-content {
+  background-color: #333;
+  padding: 2rem;
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
+  max-width: 300px;
+  width: 80%;
+}
+.move-buttons {
+  margin-top: 1rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.move-buttons button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.move-buttons button:hover {
+  background-color: #666;
+}
+
+/* MODAL DE CONFIRMACIÓN PERSONALIZADO */
+.confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+.confirm-content {
+  background-color: #333;
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  color: #fff;
+}
+.confirm-buttons {
+  margin-top: 1rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.confirm-buttons button {
+  padding: 0.5rem 1rem;
+  background-color: #444;
+  border: 1px solid #666;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.confirm-buttons button:hover {
+  background-color: #666;
+}
+
+/* TEMA CLARO */
+body.light-theme {
+  background-color: #f0f0f0;
+  color: #333;
+}
+body.light-theme header {
+  background-color: #ddd;
+  color: #333;
+}
+body.light-theme .folder,
+body.light-theme .task,
+body.light-theme .step-item,
+body.light-theme .trash-item {
+  background-color: #fff;
+  border-color: #ccc;
+  color: #333;
+}
+body.light-theme .new-folder-input,
+body.light-theme #newTaskInput,
+body.light-theme .new-step-input,
+body.light-theme #rewardInput {
+  background-color: #eee;
+  border-color: #ccc;
+  color: #333;
+}
+body.light-theme .icon-button,
+body.light-theme .folder-options-btn,
+body.light-theme .folder-dropdown-menu button,
+body.light-theme .task-buttons button,
+body.light-theme .step-buttons button,
+body.light-theme .trash-buttons button {
+  background-color: #ddd;
+  border-color: #ccc;
+  color: #333;
+}
+body.light-theme .icon-button:hover,
+body.light-theme .folder-options-btn:hover,
+body.light-theme .folder-dropdown-menu button:hover,
+body.light-theme .task-buttons button:hover,
+body.light-theme .step-buttons button:hover,
+body.light-theme .trash-buttons button:hover {
+  background-color: #ccc;
+}
+body.light-theme #presentationModal {
+  background-color: #000000aa;
+  color: #333;
+}
+body.light-theme .presentation-step {
+  background-color: #fff;
+  color: #333;
+}
+body.light-theme .timer {
+  color: #ff9900;
+}
+body.light-theme .mini-folder-container {
+  background: #ffffff;
+  border-color: #ffc107;
+}
+body.light-theme .mini-folder-title {
+  color: #ffc107;
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+/* TEMA CYBERPUNK */
+body.cyberpunk-theme {
+  background-color: #0f111b;
+  color: #00ffe7;
+}
+body.cyberpunk-theme header {
+  background-color: #1a1f2e;
+  color: #00ffe7;
+}
+body.cyberpunk-theme .folder,
+body.cyberpunk-theme .task,
+body.cyberpunk-theme .step-item,
+body.cyberpunk-theme .trash-item {
+  background-color: #1b1f31;
+  border-color: #ff0090;
+  color: #00ffe7;
+}
+body.cyberpunk-theme .new-folder-input,
+body.cyberpunk-theme #newTaskInput,
+body.cyberpunk-theme .new-step-input,
+body.cyberpunk-theme #rewardInput {
+  background-color: #1b1f31;
+  border-color: #ff0090;
+  color: #00ffe7;
+}
+body.cyberpunk-theme .icon-button,
+body.cyberpunk-theme .folder-options-btn,
+body.cyberpunk-theme .folder-dropdown-menu button,
+body.cyberpunk-theme .task-buttons button,
+body.cyberpunk-theme .step-buttons button,
+body.cyberpunk-theme .trash-buttons button {
+  background-color: #1b1f31;
+  border-color: #ff0090;
+  color: #00ffe7;
+  box-shadow: 0 0 5px #ff0090;
+}
+body.cyberpunk-theme .icon-button:hover,
+body.cyberpunk-theme .folder-options-btn:hover,
+body.cyberpunk-theme .folder-dropdown-menu button:hover,
+body.cyberpunk-theme .task-buttons button:hover,
+body.cyberpunk-theme .step-buttons button:hover,
+body.cyberpunk-theme .trash-buttons button:hover {
+  background-color: #231b2e;
+}
+body.cyberpunk-theme #presentationModal {
+  background-color: rgba(0,0,0,0.9);
+  color: #00ffe7;
+}
+body.cyberpunk-theme .presentation-step {
+  background-color: #1b1f31;
+  color: #00ffe7;
+  box-shadow: 0 0 10px #ff0090;
+}
+body.cyberpunk-theme .timer {
+  color: #ff0090;
+}
+body.cyberpunk-theme .mini-folder-container {
+  background: #1b1f31;
+  border-color: #ff0090;
+}
+body.cyberpunk-theme .mini-folder-title {
+  color: #00ffe7;
+  border-color: rgba(255, 0, 144, 0.3);
+}
+
+/* Estilos para la interfaz del chat según el tema */
+.chat-dark {
+  background-color: #333;
+  color: #fff;
+}
+
+.chat-dark .chat-header,
+.chat-dark .chat-input,
+.chat-dark .chat-messages {
+  background-color: #333;
+  color: #fff;
+}
+
+.chat-light {
+  background-color: #eee;
+  color: #333;
+}
+
+.chat-light .chat-header,
+.chat-light .chat-input,
+.chat-light .chat-messages {
+  background-color: #f7f7f7;
+  color: #333;
+}
+
+.chat-cyberpunk {
+  background-color: #1b1f31;
+  color: #00ffe7;
+}
+
+.chat-cyberpunk .chat-header,
+.chat-cyberpunk .chat-input,
+.chat-cyberpunk .chat-messages {
+  background-color: #232c42;
+  color: #00ffe7;
+}
+
+/* MODAL DE COMPARTIR */
+.share-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7); /* Fondo semi-transparente */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.share-content {
+  background-color: #333;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+  position: relative; /* Para posicionar el botón de cerrar */
+}
+
+.share-content h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Responsive grid */
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.share-button {
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 8px;
+  padding: 1rem 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.share-button:hover {
+  background-color: #555;
+  border-color: #888;
+  transform: translateY(-2px);
+}
+
+.share-button img,
+.share-button svg {
+  width: 32px;
+  height: 32px;
+}
+
+.share-modal .close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.share-modal .close-button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Adaptación de temas para el modal de compartir */
+body.light-theme .share-content {
+  background-color: #f7f7f7;
+  color: #333;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .share-button {
+  background-color: #eee;
+  border-color: #ccc;
+  color: #333;
+}
+
+body.light-theme .share-button:hover {
+  background-color: #ddd;
+  border-color: #bbb;
+}
+
+body.light-theme .share-modal .close-button {
+  color: #333;
+}
+
+body.light-theme .share-modal .close-button:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+body.cyberpunk-theme .share-content {
+  background-color: #1b1f31;
+  color: #00ffe7;
+  border: 1px solid #ff0090;
+  box-shadow: 0 0 15px #ff0090;
+}
+
+body.cyberpunk-theme .share-button {
+  background-color: #232c42;
+  border-color: #00ffe7;
+  color: #00ffe7;
+  box-shadow: 0 0 5px #00ffe7;
+}
+
+body.cyberpunk-theme .share-button:hover {
+  background-color: #2e3a52;
+  border-color: #ff0090;
+  box-shadow: 0 0 8px #ff0090;
+}
+
+body.cyberpunk-theme .share-modal .close-button {
+  color: #ff0090;
+}
+
+body.cyberpunk-theme .share-modal .close-button:hover {
+  background-color: rgba(255, 0, 144, 0.2);
+}
