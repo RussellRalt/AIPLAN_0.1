@@ -12,14 +12,18 @@ dotenv.config();
 
 const app = express();
 
-// Configurar OpenAI con la API compatible (usa las variables de entorno configuradas por Manus)
+// Configurar OpenRouter
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  // La base URL ya está configurada automáticamente por las variables de entorno de Manus
+  apiKey: process.env.OPENAI_API_KEY || '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',
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    'HTTP-Referer': 'https://aiplan.vercel.app',
+    'X-Title': 'AIPLAN'
+  }
 });
 
-// Modelo a usar (compatible con Manus MCP)
-const AI_MODEL = 'gpt-4.1-mini'; // Modelo rápido y eficiente
+// Modelo gratuito de OpenRouter
+const AI_MODEL = 'x-ai/grok-beta'; // Modelo gratuito de Grok
 
 app.use(cors());
 app.use(express.json());

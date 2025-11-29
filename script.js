@@ -331,7 +331,7 @@ async function checkAuthStatus() {
     if (authChoiceDiv) authChoiceDiv.style.display = 'none';
     if (authContainer) authContainer.style.display = 'none';
     // Mostrar el botón de AI y resetear el estado del chat
-    if (aiButton) aiButton.style.display = 'block';
+    if (aiButton) aiButton.style.display = 'flex';
     if (chatModal) chatModal.style.display = 'none';
     // Cargar datos del usuario específico
     loadUserData(user.id);
